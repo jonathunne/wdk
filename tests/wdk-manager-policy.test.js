@@ -185,7 +185,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': 'scope' must be one of: project, wallet, account.")
+      expect(err.message).toBe("Policy 'p': 'scope' must be one of: project, account.")
     })
 
     test('throws PolicyConfigurationError on unknown operation', () => {
@@ -236,16 +236,6 @@ describe('WdkManager — policy engine', () => {
 
       expect(err.name).toBe('PolicyConfigurationError')
       expect(err.message).toBe("Policy 'p': account-scope policies must be registered with a chain argument.")
-    })
-
-    test('throws PolicyConfigurationError on wallet-scope without chain', () => {
-      wdkManager.registerWallet('ethereum', WalletManagerMock, {})
-
-      const policy = { id: 'p', name: 'p', scope: 'wallet', rules: [{ name: 'r', operation: 'sendTransaction', action: 'ALLOW', conditions: [] }] }
-      const err = catchSync(() => wdkManager.registerPolicy(policy))
-
-      expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': wallet-scope policies must be registered with a chain argument.")
     })
 
     test('throws PolicyConfigurationError when accounts is provided on non-account scope', () => {
@@ -325,15 +315,15 @@ describe('WdkManager — policy engine', () => {
   // -------------------------------------------------------------------------
 
   describe('dispose', () => {
-    test('disposing a single chain stops policy enforcement on that chain after re-register', async () => {
+    test('disposing a single chain stops chain-bound project policies on that chain after re-register', async () => {
       getAccountMock.mockResolvedValue(buildAccount())
 
       wdkManager
         .registerWallet('ethereum', WalletManagerMock, {})
         .registerPolicy('ethereum', {
-          id: 'wallet-deny',
-          name: 'wallet-deny',
-          scope: 'wallet',
+          id: 'eth-deny',
+          name: 'eth-deny',
+          scope: 'project',
           rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
         })
 
@@ -362,16 +352,16 @@ describe('WdkManager — policy engine', () => {
       expect(result.hash).toBe(DUMMY_TX_HASH)
     })
 
-    test('disposing one chain leaves other chains wallet-scope bindings intact', async () => {
+    test('disposing one chain narrows a multi-chain project policy and leaves other chains intact', async () => {
       getAccountMock.mockImplementation(async () => buildAccount())
 
       wdkManager
         .registerWallet('ethereum', WalletManagerMock, {})
         .registerWallet('ton', WalletManagerMock, {})
         .registerPolicy(['ethereum', 'ton'], {
-          id: 'multi-wallet',
-          name: 'multi-wallet',
-          scope: 'wallet',
+          id: 'multi-chain',
+          name: 'multi-chain',
+          scope: 'project',
           rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
         })
 
@@ -383,7 +373,7 @@ describe('WdkManager — policy engine', () => {
       const err = await catchAsync(() => tonAccount.sendTransaction({ to: RECIPIENT, value: 1n }))
 
       expect(err.name).toBe('PolicyViolationError')
-      expect(err.policyId).toBe('multi-wallet')
+      expect(err.policyId).toBe('multi-chain')
 
       // ethereum should be unguarded again.
       const ethAccount = await wdkManager.getAccount('ethereum', 0)
@@ -746,7 +736,7 @@ describe('WdkManager — policy engine', () => {
   // -------------------------------------------------------------------------
 
   describe('evaluation — multi-scope', () => {
-    test('a wallet-scope DENY shadows an account-scope ALLOW (no override)', async () => {
+    test('a chain-bound project DENY shadows an account-scope ALLOW (no override)', async () => {
       getAccountMock.mockResolvedValue(buildAccount())
 
       wdkManager
@@ -759,18 +749,18 @@ describe('WdkManager — policy engine', () => {
           rules: [{ name: 'allow', operation: 'sendTransaction', action: 'ALLOW', conditions: [] }]
         })
         .registerPolicy('ethereum', {
-          id: 'wallet-deny',
-          name: 'wallet-deny',
-          scope: 'wallet',
-          rules: [{ name: 'wdeny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+          id: 'eth-deny',
+          name: 'eth-deny',
+          scope: 'project',
+          rules: [{ name: 'edeny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
         })
 
       const account = await wdkManager.getAccount('ethereum', 0)
       const err = await catchAsync(() => account.sendTransaction({ to: RECIPIENT, value: 1n }))
 
       expect(err.name).toBe('PolicyViolationError')
-      expect(err.policyId).toBe('wallet-deny')
-      expect(err.ruleName).toBe('wdeny')
+      expect(err.policyId).toBe('eth-deny')
+      expect(err.ruleName).toBe('edeny')
     })
 
     test('a project-scope DENY shadows an account-scope ALLOW recorded without override', async () => {
@@ -810,7 +800,7 @@ describe('WdkManager — policy engine', () => {
       expect(err.ruleName).toBe('block-bad')
     })
 
-    test('an account-scope ALLOW with override_broader_scope skips both wallet and project DENYs', async () => {
+    test('an account-scope ALLOW with override_broader_scope skips both chain-bound and global project DENYs', async () => {
       getAccountMock.mockResolvedValue(buildAccount())
 
       wdkManager
@@ -829,16 +819,16 @@ describe('WdkManager — policy engine', () => {
           }]
         })
         .registerPolicy('ethereum', {
-          id: 'wallet-deny',
-          name: 'wallet-deny',
-          scope: 'wallet',
-          rules: [{ name: 'wdeny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+          id: 'eth-deny',
+          name: 'eth-deny',
+          scope: 'project',
+          rules: [{ name: 'edeny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
         })
         .registerPolicy({
-          id: 'project-deny',
-          name: 'project-deny',
+          id: 'global-deny',
+          name: 'global-deny',
           scope: 'project',
-          rules: [{ name: 'pdeny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+          rules: [{ name: 'gdeny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
         })
 
       const account = await wdkManager.getAccount('ethereum', 0)
@@ -924,7 +914,7 @@ describe('WdkManager — policy engine', () => {
         .registerPolicy(['ethereum', 'ton'], {
           id: 'multi',
           name: 'multi',
-          scope: 'wallet',
+          scope: 'project',
           rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
         })
 
@@ -1616,6 +1606,166 @@ describe('WdkManager — policy engine', () => {
       expect(engineCopy.nested.count).toBe(0)
       expect(engineCopy).not.toBe(state)
       expect(engineCopy.nested).not.toBe(state.nested)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Project-scope chain narrowing
+  // -------------------------------------------------------------------------
+
+  describe('chain-bound project policies', () => {
+    test('a project policy registered with a chain only applies to that chain', async () => {
+      getAccountMock.mockImplementation(async () => buildAccount())
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerWallet('ton', WalletManagerMock, {})
+        .registerPolicy('ethereum', {
+          id: 'eth-only',
+          name: 'eth-only',
+          scope: 'project',
+          rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+        })
+
+      const eth = await wdkManager.getAccount('ethereum', 0)
+      const ton = await wdkManager.getAccount('ton', 0)
+
+      const ethErr = await catchAsync(() => eth.sendTransaction({ to: RECIPIENT, value: 1n }))
+      const tonResult = await ton.sendTransaction({ to: RECIPIENT, value: 1n })
+
+      expect(ethErr.name).toBe('PolicyViolationError')
+      expect(ethErr.policyId).toBe('eth-only')
+      expect(tonResult.hash).toBe(DUMMY_TX_HASH)
+    })
+
+    test('a project policy with no chain binding applies to every chain', async () => {
+      getAccountMock.mockImplementation(async () => buildAccount())
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerWallet('ton', WalletManagerMock, {})
+        .registerPolicy(projectDenyAll('global'))
+
+      const eth = await wdkManager.getAccount('ethereum', 0)
+      const ton = await wdkManager.getAccount('ton', 0)
+
+      const ethErr = await catchAsync(() => eth.sendTransaction({ to: RECIPIENT, value: 1n }))
+      const tonErr = await catchAsync(() => ton.sendTransaction({ to: RECIPIENT, value: 1n }))
+
+      expect(ethErr.policyId).toBe('global')
+      expect(tonErr.policyId).toBe('global')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Account-scope: accounts field accepts both derivation paths and indexes
+  // -------------------------------------------------------------------------
+
+  describe('account identifiers', () => {
+    test("accounts as integer indexes match the index passed to wdk.getAccount(chain, index)", async () => {
+      getAccountMock.mockImplementation(async (idx) => buildAccount(`0'/0/${idx}`))
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy('ethereum', {
+          id: 'cold-storage',
+          name: 'cold-storage',
+          scope: 'account',
+          accounts: [0],
+          rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+        })
+
+      const account0 = await wdkManager.getAccount('ethereum', 0)
+      const account1 = await wdkManager.getAccount('ethereum', 1)
+
+      const err = await catchAsync(() => account0.sendTransaction({ to: RECIPIENT, value: 1n }))
+      const result = await account1.sendTransaction({ to: RECIPIENT, value: 1n })
+
+      expect(err.policyId).toBe('cold-storage')
+      expect(result.hash).toBe(DUMMY_TX_HASH)
+    })
+
+    test('accounts can mix derivation paths and integer indexes in the same array', async () => {
+      getAccountMock.mockImplementation(async (idx) => buildAccount(`0'/0/${idx}`))
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy('ethereum', {
+          id: 'mixed',
+          name: 'mixed',
+          scope: 'account',
+          accounts: [0, "0'/0/2"],
+          rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+        })
+
+      const account0 = await wdkManager.getAccount('ethereum', 0)
+      const account1 = await wdkManager.getAccount('ethereum', 1)
+      const account2 = await wdkManager.getAccount('ethereum', 2)
+
+      const err0 = await catchAsync(() => account0.sendTransaction({ to: RECIPIENT, value: 1n }))
+      const result1 = await account1.sendTransaction({ to: RECIPIENT, value: 1n })
+      const err2 = await catchAsync(() => account2.sendTransaction({ to: RECIPIENT, value: 1n }))
+
+      expect(err0.policyId).toBe('mixed')
+      expect(result1.hash).toBe(DUMMY_TX_HASH)
+      expect(err2.policyId).toBe('mixed')
+    })
+
+    test('an index entry does not match accounts retrieved via getAccountByPath (path-only retrieval)', async () => {
+      getAccountByPathMock.mockResolvedValue(buildAccount("0'/0/0"))
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy('ethereum', {
+          id: 'index-only',
+          name: 'index-only',
+          scope: 'account',
+          accounts: [0],
+          rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+        })
+
+      const account = await wdkManager.getAccountByPath('ethereum', "0'/0/0")
+      const result = await account.sendTransaction({ to: RECIPIENT, value: 1n })
+
+      expect(result.hash).toBe(DUMMY_TX_HASH)
+    })
+
+    test("a path entry matches accounts retrieved via either getAccount(chain, index) or getAccountByPath(chain, path)", async () => {
+      getAccountMock.mockImplementation(async (idx) => buildAccount(`0'/0/${idx}`))
+      getAccountByPathMock.mockResolvedValue(buildAccount("0'/0/5"))
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy('ethereum', {
+          id: 'path-bound',
+          name: 'path-bound',
+          scope: 'account',
+          accounts: ["0'/0/5"],
+          rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+        })
+
+      const viaIndex = await wdkManager.getAccount('ethereum', 5)
+      const viaPath = await wdkManager.getAccountByPath('ethereum', "0'/0/5")
+
+      const err1 = await catchAsync(() => viaIndex.sendTransaction({ to: RECIPIENT, value: 1n }))
+      const err2 = await catchAsync(() => viaPath.sendTransaction({ to: RECIPIENT, value: 1n }))
+
+      expect(err1.policyId).toBe('path-bound')
+      expect(err2.policyId).toBe('path-bound')
+    })
+
+    test('rejects accounts entries that are neither non-empty strings nor non-negative integers', () => {
+      wdkManager.registerWallet('ethereum', WalletManagerMock, {})
+
+      const cases = [-1, 1.5, NaN, '', null, undefined, true, {}]
+
+      for (const value of cases) {
+        const policy = { id: 'p', name: 'p', scope: 'account', accounts: [value], rules: [{ name: 'r', operation: 'sendTransaction', action: 'ALLOW', conditions: [] }] }
+        const err = catchSync(() => wdkManager.registerPolicy('ethereum', policy))
+
+        expect(err.name).toBe('PolicyConfigurationError')
+        expect(err.message).toBe("Policy 'p': 'accounts' is required and must be a non-empty array of derivation paths or non-negative integer indexes when scope is 'account'.")
+      }
     })
   })
 })

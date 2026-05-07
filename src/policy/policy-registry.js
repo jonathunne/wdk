@@ -17,11 +17,11 @@
 /**
  * @internal
  *
- * In-memory store for registered policies, partitioned into three buckets:
- *   - `_project`     project-scope policies, ordered list, indexed by id.
- *   - `_walletByChain[chain]` wallet-scope policies bound to that chain.
+ * In-memory store for registered policies, partitioned into two buckets:
+ *   - `_project`              project-scope policies, ordered list, indexed by id.
  *   - `_accountByChain[chain]` account-scope policies bound to that chain
- *      (matching against `policy.accounts` paths is done at evaluation time).
+ *      (matching against `policy.accounts` entries — paths or indexes — is
+ *      done at evaluation time).
  *
  * Same-id-within-same-bucket replaces in place, preserving registration order.
  * Different bindings (same id under chain A vs chain B vs project) are
@@ -33,18 +33,17 @@ export default class PolicyRegistry {
     this._project = []
 
     /** @private */
-    this._walletByChain = Object.create(null)
-
-    /** @private */
     this._accountByChain = Object.create(null)
   }
 
   /**
    * Registers a single policy under the given chain bindings.
-   * - chains === undefined → project-scope only (policy must be project-scope).
-   * - chains is array      → bind under each chain into the matching bucket.
+   * - For a project-scope policy: chains === undefined applies it globally;
+   *   a chain array narrows the policy to those chains only.
+   * - For an account-scope policy: chains is required and binds the policy
+   *   into the per-chain account bucket.
    *
-   * Stores a defensive shallow clone of the policy so callers cannot mutate
+   * Stores a defensive deep-ish clone of the policy so callers cannot mutate
    * engine state by editing the original object after registration.
    *
    * @param {object} policy
@@ -54,80 +53,119 @@ export default class PolicyRegistry {
     const cloned = clonePolicy(policy)
 
     if (cloned.scope === 'project') {
+      // Tag the cloned policy with its chain restriction for later filtering.
+      // undefined means "applies to every chain".
+      cloned._chains = chains
       replaceById(this._project, cloned)
 
       return
     }
 
-    const target = cloned.scope === 'wallet' ? this._walletByChain : this._accountByChain
-
     for (const chain of chains) {
-      target[chain] ??= []
+      this._accountByChain[chain] ??= []
 
-      replaceById(target[chain], cloned)
+      replaceById(this._accountByChain[chain], cloned)
     }
   }
 
   /**
-   * Returns the policies that may apply to a given (chain, path) operation,
-   * partitioned into the three groups.
+   * Returns the policies that may apply to a given (chain, path, index) call,
+   * partitioned into the two groups (account, project). An account-scope
+   * policy matches when `policy.accounts` contains the path (string match)
+   * or the index (number match). A project-scope policy matches when it
+   * has no chain restriction or its restriction includes the chain.
    *
    * @param {string} chain
    * @param {string | undefined} path
-   * @returns {{ account: object[], wallet: object[], project: object[] }}
+   * @param {number | undefined} index
+   * @returns {{ account: object[], project: object[] }}
    */
-  applicable (chain, path) {
+  applicable (chain, path, index) {
     const account = []
 
-    if (path !== undefined && this._accountByChain[chain]) {
+    if (this._accountByChain[chain]) {
       for (const policy of this._accountByChain[chain]) {
-        if (policy.accounts && policy.accounts.includes(path)) {
+        if (matchesAccount(policy.accounts, path, index)) {
           account.push(policy)
         }
       }
     }
 
-    const wallet = this._walletByChain[chain] ? Array.from(this._walletByChain[chain]) : []
-    const project = Array.from(this._project)
+    const project = []
 
-    return { account, wallet, project }
+    for (const policy of this._project) {
+      if (policy._chains === undefined || policy._chains.includes(chain)) {
+        project.push(policy)
+      }
+    }
+
+    return { account, project }
   }
 
   /**
-   * Returns every policy that's potentially relevant to a given (chain, path),
+   * Returns every policy that's potentially relevant to a given (chain, path, index),
    * regardless of scope. Used to compute the operation-name set the wrapper
    * needs to handle.
    *
    * @param {string} chain
    * @param {string | undefined} path
+   * @param {number | undefined} index
    * @returns {object[]}
    */
-  relevant (chain, path) {
-    const { account, wallet, project } = this.applicable(chain, path)
+  relevant (chain, path, index) {
+    const { account, project } = this.applicable(chain, path, index)
 
-    return [...account, ...wallet, ...project]
+    return [...account, ...project]
   }
 
   /**
-   * Removes wallet- and account-scope policies bound to the given chain.
-   * Project-scope policies are left untouched.
+   * Removes every binding of this chain from the registry:
+   * - account-scope policies bound to the chain are dropped entirely.
+   * - project-scope policies that included this chain in their restriction
+   *   are narrowed to the remaining chains; if no chains are left, the
+   *   policy is removed entirely.
+   * - global (unrestricted) project-scope policies are untouched.
    *
    * @param {string} chain
    */
   disposeChain (chain) {
-    delete this._walletByChain[chain]
     delete this._accountByChain[chain]
+
+    this._project = this._project.filter((policy) => {
+      if (policy._chains === undefined) return true
+
+      const remaining = policy._chains.filter((c) => c !== chain)
+
+      if (remaining.length === 0) return false
+
+      policy._chains = remaining
+
+      return true
+    })
   }
 
   /**
-   * Removes every registered policy across all buckets.
+   * Removes every registered policy across both buckets.
    */
   disposeAll () {
     this._project = []
 
-    for (const key of Object.keys(this._walletByChain)) delete this._walletByChain[key]
     for (const key of Object.keys(this._accountByChain)) delete this._accountByChain[key]
   }
+}
+
+function matchesAccount (accounts, path, index) {
+  if (!Array.isArray(accounts)) return false
+
+  for (const entry of accounts) {
+    if (typeof entry === 'string') {
+      if (path !== undefined && entry === path) return true
+    } else if (typeof entry === 'number') {
+      if (index !== undefined && entry === index) return true
+    }
+  }
+
+  return false
 }
 
 function replaceById (list, policy) {

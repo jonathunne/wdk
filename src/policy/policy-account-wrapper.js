@@ -57,17 +57,18 @@ function getPolicyContextStore () {
  * by them have their write methods wrapped too. Also attaches an
  * `account.simulate.*` mirror that runs evaluation without execution.
  *
- * If no registered policy applies to (chain, path), this is a no-op.
+ * If no registered policy applies to (chain, path, index), this is a no-op.
  *
  * @internal
  * @param {IWalletAccount} account - The runtime account instance to mutate.
  * @param {object} options
  * @param {string} options.blockchain
  * @param {string | undefined} options.path
+ * @param {number | undefined} options.index
  * @param {object} options.engine - The PolicyEngine instance.
  */
-export async function applyPoliciesToAccount (account, { blockchain, path, engine }) {
-  const relevantOps = engine._relevantOperations(blockchain, path)
+export async function applyPoliciesToAccount (account, { blockchain, path, index, engine }) {
+  const relevantOps = engine._relevantOperations(blockchain, path, index)
 
   if (relevantOps.size === 0) return
 
@@ -99,6 +100,7 @@ export async function applyPoliciesToAccount (account, { blockchain, path, engin
         account,
         readOnlyAccount,
         blockchain,
+        index,
         engine,
         store
       })
@@ -130,6 +132,7 @@ export async function applyPoliciesToAccount (account, { blockchain, path, engin
           account,
           readOnlyAccount,
           blockchain,
+          index,
           engine,
           store
         })
@@ -143,12 +146,13 @@ export async function applyPoliciesToAccount (account, { blockchain, path, engin
     account,
     readOnlyAccount,
     blockchain,
+    index,
     engine,
     wrappedNames
   })
 }
 
-function makeWrappedMethod ({ name, original, account, readOnlyAccount, blockchain, engine, store }) {
+function makeWrappedMethod ({ name, original, account, readOnlyAccount, blockchain, index, engine, store }) {
   return async function (...args) {
     if (store.getStore()?.inPolicy) {
       return original(...args)
@@ -161,7 +165,7 @@ function makeWrappedMethod ({ name, original, account, readOnlyAccount, blockcha
       args
     })
 
-    const verdict = await engine._evaluateContext(context, { path: account.path })
+    const verdict = await engine._evaluateContext(context, { path: account.path, index })
 
     if (verdict.outcome === 'BLOCK') {
       throw new PolicyViolationError(
@@ -175,7 +179,7 @@ function makeWrappedMethod ({ name, original, account, readOnlyAccount, blockcha
   }
 }
 
-function attachSimulateMirror ({ account, readOnlyAccount, blockchain, engine, wrappedNames }) {
+function attachSimulateMirror ({ account, readOnlyAccount, blockchain, index, engine, wrappedNames }) {
   const simulate = Object.create(null)
 
   for (const name of wrappedNames) {
@@ -187,7 +191,7 @@ function attachSimulateMirror ({ account, readOnlyAccount, blockchain, engine, w
         args
       })
 
-      return engine._simulateContext(context, { path: account.path })
+      return engine._simulateContext(context, { path: account.path, index })
     }
   }
 
@@ -208,7 +212,7 @@ function attachSimulateMirror ({ account, readOnlyAccount, blockchain, engine, w
             args
           })
 
-          return engine._simulateContext(context, { path: account.path })
+          return engine._simulateContext(context, { path: account.path, index })
         }
       }
 

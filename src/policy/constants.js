@@ -47,7 +47,7 @@ export const OPERATIONS_SET = new Set(OPERATIONS)
 export const WILDCARD = '*'
 
 /** @internal */
-export const SCOPES = Object.freeze(['project', 'wallet', 'account'])
+export const SCOPES = Object.freeze(['project', 'account'])
 
 /** @internal */
 export const ACTIONS = Object.freeze(['ALLOW', 'DENY'])

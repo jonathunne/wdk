@@ -28,8 +28,14 @@ function isNonEmptyString (value) {
   return typeof value === 'string' && value.length > 0
 }
 
-function isStringArray (value) {
-  return Array.isArray(value) && value.length > 0 && value.every(isNonEmptyString)
+function isAccountIdentifier (value) {
+  if (isNonEmptyString(value)) return true
+
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+function isAccountsArray (value) {
+  return Array.isArray(value) && value.length > 0 && value.every(isAccountIdentifier)
 }
 
 function isOperationName (value) {
@@ -113,8 +119,8 @@ export function validatePolicy (policy, chains) {
   }
 
   if (policy.scope === 'account') {
-    if (!isStringArray(policy.accounts)) {
-      throw new PolicyConfigurationError(`Policy '${policy.id}': 'accounts' is required and must be a non-empty array of derivation paths when scope is 'account'.`)
+    if (!isAccountsArray(policy.accounts)) {
+      throw new PolicyConfigurationError(`Policy '${policy.id}': 'accounts' is required and must be a non-empty array of derivation paths or non-negative integer indexes when scope is 'account'.`)
     }
 
     if (chains === undefined) {
@@ -122,10 +128,6 @@ export function validatePolicy (policy, chains) {
     }
   } else if (policy.accounts !== undefined) {
     throw new PolicyConfigurationError(`Policy '${policy.id}': 'accounts' is only allowed when scope is 'account'.`)
-  }
-
-  if (policy.scope === 'wallet' && chains === undefined) {
-    throw new PolicyConfigurationError(`Policy '${policy.id}': wallet-scope policies must be registered with a chain argument.`)
   }
 
   if (!Array.isArray(policy.rules) || policy.rules.length === 0) {

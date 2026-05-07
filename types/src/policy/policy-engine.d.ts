@@ -18,10 +18,12 @@ export default class PolicyEngine {
      * @param {object} ctx
      * @param {string} ctx.blockchain
      * @param {string | undefined} ctx.path
+     * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(chain, index)`, when known. Used to match index-form entries in `policy.accounts`.
      */
-    applyPoliciesTo(account: object, { blockchain, path }: {
+    applyPoliciesTo(account: object, { blockchain, path, index }: {
         blockchain: string;
         path: string | undefined;
+        index?: number | undefined;
     }): Promise<void>;
     /**
      * Removes wallet- and account-bound policies for the given chain.
@@ -42,7 +44,7 @@ export default class PolicyEngine {
 }
 export type IWalletAccountReadOnly = import("@tetherto/wdk-wallet").IWalletAccountReadOnly;
 export type PolicyAction = "ALLOW" | "DENY";
-export type PolicyScope = "project" | "wallet" | "account";
+export type PolicyScope = "project" | "account";
 export type PolicyOperation = "sendTransaction" | "transfer" | "approve" | "signMessage" | "signHash" | "signTypedData" | "signAuthorization" | "delegate" | "revokeDelegation" | "swap" | "bridge" | "supply" | "withdraw" | "borrow" | "repay" | "buy" | "sell" | "*";
 export type PolicyContext = {
     /**
@@ -89,14 +91,15 @@ export type PolicyRule = {
      */
     onSuccess?: (c: PolicyContext) => void | Promise<void>;
 };
+export type AccountIdentifier = string | number;
 export type Policy = {
     id: string;
     name: string;
     scope: PolicyScope;
     /**
-     * - Derivation paths the policy applies to (required when scope is 'account'). Exact-string matching only in Phase 1; no prefix or wildcard matching.
+     * - The accounts this policy applies to (required when scope is 'account'). Each entry is either a derivation path (exact-string match against `account.path`) or a non-negative integer (match against the index passed to `wdk.getAccount(chain, index)`). Index entries do not match accounts retrieved via `getAccountByPath` — use derivation paths if you need both retrieval styles to work.
      */
-    accounts?: string[];
+    accounts?: AccountIdentifier[];
     rules: PolicyRule[];
 };
 export type RegisterPolicyOptions = {

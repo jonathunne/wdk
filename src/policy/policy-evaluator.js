@@ -17,9 +17,9 @@
 import { ruleAddressesOperation } from './policy-validators.js'
 
 /**
- * Evaluates a context against the three policy groups (account, wallet, project)
- * with DENY-wins, narrower-first semantics. Returns a structured verdict, never
- * throws on policy outcomes (it does throw on programmer errors).
+ * Evaluates a context against the two policy groups (account, project)
+ * with DENY-wins, narrower-first semantics. Returns a structured verdict,
+ * never throws on policy outcomes (it does throw on programmer errors).
  *
  * Outcome shape:
  *   { outcome: 'ALLOW' | 'BLOCK',
@@ -30,7 +30,7 @@ import { ruleAddressesOperation } from './policy-validators.js'
  *
  * @internal
  * @param {object} context
- * @param {{ account: object[], wallet: object[], project: object[] }} groups
+ * @param {{ account: object[], project: object[] }} groups
  * @param {{ conditionTimeoutMs: number }} options
  */
 export async function evaluate (context, groups, options) {
@@ -38,7 +38,6 @@ export async function evaluate (context, groups, options) {
 
   const anyAddresses =
     addresses(groups.account, context.operation) ||
-    addresses(groups.wallet, context.operation) ||
     addresses(groups.project, context.operation)
 
   if (!anyAddresses) {
@@ -51,10 +50,6 @@ export async function evaluate (context, groups, options) {
   if (a.kind === 'DENY') return makeBlock(a.policyId, a.ruleName, a.reason, trace)
   if (a.kind === 'ALLOW_FINAL') return makeAllow(a.policyId, a.ruleName, 'override', trace)
   recordedAllows.push(...a.allows)
-
-  const b = await evalGroup(groups.wallet, context, trace, 'wallet', { allowOverride: false, ...options })
-  if (b.kind === 'DENY') return makeBlock(b.policyId, b.ruleName, b.reason, trace)
-  recordedAllows.push(...b.allows)
 
   const c = await evalGroup(groups.project, context, trace, 'project', { allowOverride: false, ...options })
   if (c.kind === 'DENY') return makeBlock(c.policyId, c.ruleName, c.reason, trace)

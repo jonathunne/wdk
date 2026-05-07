@@ -32,7 +32,7 @@ import {
  */
 
 /**
- * @typedef {'project' | 'wallet' | 'account'} PolicyScope
+ * @typedef {'project' | 'account'} PolicyScope
  */
 
 /**
@@ -68,11 +68,15 @@ import {
  */
 
 /**
+ * @typedef {string | number} AccountIdentifier
+ */
+
+/**
  * @typedef {object} Policy
  * @property {string} id
  * @property {string} name
  * @property {PolicyScope} scope
- * @property {string[]} [accounts] - Derivation paths the policy applies to (required when scope is 'account'). Exact-string matching only in Phase 1; no prefix or wildcard matching.
+ * @property {AccountIdentifier[]} [accounts] - The accounts this policy applies to (required when scope is 'account'). Each entry is either a derivation path (exact-string match against `account.path`) or a non-negative integer (match against the index passed to `wdk.getAccount(chain, index)`). Index entries do not match accounts retrieved via `getAccountByPath` — use derivation paths if you need both retrieval styles to work.
  * @property {PolicyRule[]} rules
  */
 
@@ -157,9 +161,10 @@ export default class PolicyEngine {
    * @param {object} ctx
    * @param {string} ctx.blockchain
    * @param {string | undefined} ctx.path
+   * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(chain, index)`, when known. Used to match index-form entries in `policy.accounts`.
    */
-  async applyPoliciesTo (account, { blockchain, path }) {
-    await applyPoliciesToAccount(account, { blockchain, path, engine: this })
+  async applyPoliciesTo (account, { blockchain, path, index }) {
+    await applyPoliciesToAccount(account, { blockchain, path, index, engine: this })
   }
 
   /**
@@ -179,20 +184,20 @@ export default class PolicyEngine {
   }
 
   /** @private */
-  _relevantOperations (chain, path) {
-    return collectReferencedOperations(this._registry.relevant(chain, path))
+  _relevantOperations (chain, path, index) {
+    return collectReferencedOperations(this._registry.relevant(chain, path, index))
   }
 
   /** @private */
-  async _evaluateContext (context, { path }) {
-    const groups = this._registry.applicable(context.chain, path)
+  async _evaluateContext (context, { path, index }) {
+    const groups = this._registry.applicable(context.chain, path, index)
 
     return evaluate(context, groups, { conditionTimeoutMs: this._conditionTimeoutMs })
   }
 
   /** @private */
-  async _simulateContext (context, { path }) {
-    const verdict = await this._evaluateContext(context, { path })
+  async _simulateContext (context, { path, index }) {
+    const verdict = await this._evaluateContext(context, { path, index })
 
     return {
       decision: verdict.outcome === 'BLOCK' ? 'DENY' : 'ALLOW',
