@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { applyPoliciesToAccount } from './policy-account-wrapper.js'
+import { createPolicyEnforcedAccount } from './policy-account-proxy.js'
 import { PolicyConfigurationError } from './policy-error.js'
 import { evaluate } from './policy-evaluator.js'
 import PolicyRegistry from './policy-registry.js'
@@ -155,16 +155,19 @@ export default class PolicyEngine {
   }
 
   /**
-   * Wraps the given account with policy enforcement.
+   * Returns a policy-enforced view of the given account — a Proxy that
+   * exposes enforced versions of write methods. The original account is
+   * never mutated. If no policy applies, returns the original account.
    *
    * @param {object} account
    * @param {object} ctx
    * @param {string} ctx.blockchain - The wallet identifier (named `blockchain` here to match the WDK manager's existing API; the policy engine treats it as an opaque wallet key).
    * @param {string | undefined} ctx.path
    * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
+   * @returns {Promise<object>} The enforced proxy, or the original account if no policy applies.
    */
   async applyPoliciesTo (account, { blockchain, path, index }) {
-    await applyPoliciesToAccount(account, { blockchain, path, index, engine: this })
+    return createPolicyEnforcedAccount(account, { blockchain, path, index, engine: this })
   }
 
   /**

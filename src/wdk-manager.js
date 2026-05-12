@@ -265,9 +265,7 @@ export default class WDK {
 
     this._registerProtocols(account, { blockchain })
 
-    await this._applyPolicies(account, { blockchain, index })
-
-    return account
+    return this._applyPolicies(account, { blockchain, index })
   }
 
   /**
@@ -291,9 +289,7 @@ export default class WDK {
 
     this._registerProtocols(account, { blockchain })
 
-    await this._applyPolicies(account, { blockchain })
-
-    return account
+    return this._applyPolicies(account, { blockchain })
   }
 
   /**
@@ -336,7 +332,7 @@ export default class WDK {
 
   /** @private */
   async _applyPolicies (account, { blockchain, index }) {
-    await this._policyEngine.applyPoliciesTo(account, { blockchain, path: account.path, index })
+    return this._policyEngine.applyPoliciesTo(account, { blockchain, path: account.path, index })
   }
 
   /** @private */

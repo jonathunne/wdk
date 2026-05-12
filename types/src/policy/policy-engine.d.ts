@@ -12,19 +12,22 @@ export default class PolicyEngine {
      */
     register(wallet: string | string[] | undefined, policies: Policy | Policy[], options?: RegisterPolicyOptions): void;
     /**
-     * Wraps the given account with policy enforcement.
+     * Returns a policy-enforced view of the given account — a Proxy that
+     * exposes enforced versions of write methods. The original account is
+     * never mutated. If no policy applies, returns the original account.
      *
      * @param {object} account
      * @param {object} ctx
      * @param {string} ctx.blockchain - The wallet identifier (named `blockchain` here to match the WDK manager's existing API; the policy engine treats it as an opaque wallet key).
      * @param {string | undefined} ctx.path
      * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
+     * @returns {Promise<object>} The enforced proxy, or the original account if no policy applies.
      */
     applyPoliciesTo(account: object, { blockchain, path, index }: {
         blockchain: string;
         path: string | undefined;
         index?: number | undefined;
-    }): Promise<void>;
+    }): Promise<object>;
     /**
      * Removes account-scope and chain-bound project policies registered under
      * the given wallet identifier.
