@@ -407,6 +407,23 @@ describe('WdkManager', () => {
     })
   })
 
+  describe('registerWallet', () => {
+    test('should throw if a wallet is already registered for the given blockchain', () => {
+      wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+      expect(() => wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG))
+        .toThrow('A wallet is already registered for blockchain: ethereum. Call dispose(["ethereum"]) before re-registering.')
+    })
+
+    test('should allow re-registering after dispose', () => {
+      wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+      wdkManager.dispose(['ethereum'])
+
+      expect(() => wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG))
+        .not.toThrow()
+    })
+  })
+
   describe('registerProtocol', () => {
     test('should throw if the protocol does not extend a known base class', () => {
       class NotAProtocol {}

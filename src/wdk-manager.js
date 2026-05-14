@@ -83,8 +83,13 @@ export default class WDK {
    * @param {W} WalletManager - The wallet manager class.
    * @param {ConstructorParameters<W>[1]} config - The configuration object.
    * @returns {WDK} The wdk instance.
+   * @throws {Error} If a wallet is already registered for the given blockchain.
    */
   registerWallet (blockchain, WalletManager, config) {
+    if (this._wallets.has(blockchain)) {
+      throw new Error(`A wallet is already registered for blockchain: ${blockchain}. Call dispose([${JSON.stringify(blockchain)}]) before re-registering.`)
+    }
+
     const wallet = new WalletManager(this._seed, config)
 
     this._wallets.set(blockchain, wallet)
