@@ -486,5 +486,24 @@ describe('WdkManager', () => {
 
       expect(disposeMock).not.toHaveBeenCalled()
     })
+
+    test('should zero the seed bytes when disposing all wallets', () => {
+      const seed = new Uint8Array(64).fill(0xab)
+      const wdk = new WdkManager(seed)
+
+      wdk.dispose()
+
+      expect(seed.every((b) => b === 0)).toBe(true)
+    })
+
+    test('should not zero the seed bytes when disposing a subset of wallets', () => {
+      const seed = new Uint8Array(64).fill(0xab)
+      const wdk = new WdkManager(seed)
+      wdk.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+      wdk.dispose(['ethereum'])
+
+      expect(seed.every((b) => b === 0xab)).toBe(true)
+    })
   })
 })

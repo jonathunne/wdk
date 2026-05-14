@@ -226,6 +226,13 @@ export default class WDK {
         this._wallets.delete(blockchain)
       }
     }
+
+    if (!blockchains) {
+      if (this._seed instanceof Uint8Array) {
+        this._seed.fill(0)
+      }
+      this._seed = null
+    }
   }
 
   /** @private */
