@@ -407,6 +407,15 @@ describe('WdkManager', () => {
     })
   })
 
+  describe('registerProtocol', () => {
+    test('should throw if the protocol does not extend a known base class', () => {
+      class NotAProtocol {}
+
+      expect(() => wdkManager.registerProtocol('ethereum', 'test', NotAProtocol, {}))
+        .toThrow('Protocol must extend SwapProtocol, BridgeProtocol, LendingProtocol, or FiatProtocol.')
+    })
+  })
+
   describe('getFeeRates', () => {
     test('should return the correct fee rates for the given blockchain', async () => {
       const DUMMY_FEE_RATES = { normal: 100n, fast: 200n }

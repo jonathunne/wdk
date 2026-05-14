@@ -123,6 +123,8 @@ export default class WDK {
       this._protocols.fiat[blockchain] ??= Object.create(null)
 
       this._protocols.fiat[blockchain][label] = { Protocol, config }
+    } else {
+      throw new Error('Protocol must extend SwapProtocol, BridgeProtocol, LendingProtocol, or FiatProtocol.')
     }
 
     return this
