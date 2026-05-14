@@ -1,4 +1,8 @@
-export default class WdkManager {
+/** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
+/** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
+/** @typedef {import('./wallet-account-with-protocols.js').IWalletAccountWithProtocols} IWalletAccountWithProtocols */
+/** @typedef {<A extends IWalletAccount>(account: A) => Promise<void>} MiddlewareFunction */
+export default class WDK {
     /**
      * Returns a random BIP-39 seed phrase.
      *
@@ -14,7 +18,7 @@ export default class WdkManager {
      */
     static isValidSeed(seed: string | Uint8Array): boolean;
     /**
-     * Creates a new wallet development kit manager.
+     * Creates a new wallet development kit instance.
      *
      * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase.
      * @throws {Error} If the seed is not valid.
@@ -29,17 +33,17 @@ export default class WdkManager {
     /** @private */
     private _middlewares;
     /**
-     * Registers a new wallet to the wdk manager.
+     * Registers a new wallet to WDK.
      *
      * @template {typeof WalletManager} W
      * @param {string} blockchain - The name of the blockchain the wallet must be bound to. Can be any string (e.g., "ethereum").
      * @param {W} WalletManager - The wallet manager class.
      * @param {ConstructorParameters<W>[1]} config - The configuration object.
-     * @returns {WdkManager} The wdk manager.
+     * @returns {WDK} The wdk instance.
      */
-    registerWallet<W extends typeof WalletManager>(blockchain: string, WalletManager: W, config: ConstructorParameters<W>[1]): WdkManager;
+    registerWallet<W extends typeof import("@tetherto/wdk-wallet").default>(blockchain: string, WalletManager: W, config: ConstructorParameters<W>[1]): WDK;
     /**
-     * Registers a new protocol to the wdk manager.
+     * Registers a new protocol to WDK.
      *
      * The label must be unique in the scope of the blockchain and the type of protocol (i.e., there can't be two protocols of the
      * same type bound to the same blockchain with the same label).
@@ -50,19 +54,19 @@ export default class WdkManager {
      * @param {string} label - The label.
      * @param {P} Protocol - The protocol class.
      * @param {ConstructorParameters<P>[1]} config - The protocol configuration.
-     * @returns {WdkManager} The wdk manager.
+     * @returns {WDK} The wdk instance.
      */
     registerProtocol<P extends typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol>(blockchain: string, label: string, Protocol: P, config: ConstructorParameters<P>[1]): WDK;
     /**
-     * Registers a new middleware to the wdk manager.
+     * Registers a new middleware to WDK.
      *
      * It's possible to register multiple middlewares for the same blockchain, which will be called sequentially.
      *
      * @param {string} blockchain - The name of the blockchain the middleware must be bound to. Can be any string (e.g., "ethereum").
      * @param {MiddlewareFunction} middleware - A callback function that is called each time the user derives a new account.
-     * @returns {WdkManager} The wdk manager.
+     * @returns {WDK} The wdk instance.
      */
-    registerMiddleware(blockchain: string, middleware: MiddlewareFunction): WdkManager;
+    registerMiddleware(blockchain: string, middleware: MiddlewareFunction): WDK;
     /**
      * Returns the wallet account for a specific blockchain and index (see BIP-44).
      *
@@ -90,10 +94,10 @@ export default class WdkManager {
      */
     getFeeRates(blockchain: string): Promise<FeeRates>;
     /**
-    * Disposes and unregisters wallets, erasing any sensitive data from memory.
-    * If no blockchains are specified, all registered wallets are disposed.
-    * @param {string[]} [blockchains] - The blockchains to dispose. If omitted, all wallets are disposed.
-    */
+     * Disposes and unregisters wallets, erasing any sensitive data from memory.
+     * If no blockchains are specified, all registered wallets are disposed.
+     * @param {string[]} [blockchains] - The blockchains to dispose. If omitted, all wallets are disposed.
+     */
     dispose(blockchains?: string[]): void;
     /** @private */
     private _runMiddlewares;
@@ -104,8 +108,7 @@ export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type IWalletAccountWithProtocols = import("./wallet-account-with-protocols.js").IWalletAccountWithProtocols;
 export type MiddlewareFunction = <A extends IWalletAccount>(account: A) => Promise<void>;
-import WalletManager from "@tetherto/wdk-wallet";
-import { SwapProtocol } from "@tetherto/wdk-wallet/protocols";
-import { BridgeProtocol } from "@tetherto/wdk-wallet/protocols";
-import { LendingProtocol } from "@tetherto/wdk-wallet/protocols";
-import { FiatProtocol } from "@tetherto/wdk-wallet/protocols";
+import { SwapProtocol } from '@tetherto/wdk-wallet/protocols';
+import { BridgeProtocol } from '@tetherto/wdk-wallet/protocols';
+import { LendingProtocol } from '@tetherto/wdk-wallet/protocols';
+import { FiatProtocol } from '@tetherto/wdk-wallet/protocols';
