@@ -33,18 +33,18 @@ const WalletManagerMock = jest.fn().mockImplementation((seed, config) => {
 })
 
 describe('WdkManager', () => {
-  const DUMMY_ACCOUNT = {
-    getAddress: async () => {
-      return '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd'
-    }
-  }
-
   const CONFIG = { transferMaxFee: 100 }
 
   let wdkManager
+  let DUMMY_ACCOUNT
 
   beforeEach(() => {
     wdkManager = new WdkManager(SEED_PHRASE)
+    DUMMY_ACCOUNT = {
+      getAddress: async () => {
+        return '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd'
+      }
+    }
   })
 
   describe('getAccount', () => {
@@ -128,6 +128,19 @@ describe('WdkManager', () => {
 
           expect(() => account.getSwapProtocol('test'))
             .toThrow('No swap protocol registered for label: test.')
+        })
+
+        test('should preserve account-scoped protocols across repeated getAccount calls', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+          account.registerProtocol('test', SwapProtocolMock, SWAP_CONFIG)
+
+          const sameAccount = await wdkManager.getAccount('ethereum', 0)
+
+          expect(sameAccount).toBe(account)
+          expect(() => sameAccount.getSwapProtocol('test')).not.toThrow()
+          expect(sameAccount.getSwapProtocol('test')).toBeInstanceOf(SwapProtocolMock)
         })
       })
 

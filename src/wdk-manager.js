@@ -18,6 +18,8 @@ import WalletManager from '@tetherto/wdk-wallet'
 
 import { SwapProtocol, BridgeProtocol, LendingProtocol, FiatProtocol } from '@tetherto/wdk-wallet/protocols'
 
+const ACCOUNT_DECORATED = Symbol('wdk.accountDecorated')
+
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
@@ -251,7 +253,11 @@ export default class WDK {
 
   /** @private */
   _registerProtocols (account, { blockchain }) {
+    if (account[ACCOUNT_DECORATED]) return
+
     const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null) }
+
+    Object.defineProperty(account, ACCOUNT_DECORATED, { value: true })
 
     account.registerProtocol = (label, Protocol, config) => {
       if (Protocol.prototype instanceof SwapProtocol) {
