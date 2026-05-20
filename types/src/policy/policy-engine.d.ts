@@ -89,7 +89,7 @@ export type PolicyRule = {
     operation: PolicyOperation | PolicyOperation[];
     action: PolicyAction;
     /**
-     * - When true on an account-scope ALLOW rule that matches, the rule's verdict short-circuits both wallet- and project-scope evaluation. Account-scope rules are evaluated in registration order; the first matching override-flag rule wins. Only valid on account-scope ALLOW rules.
+     * - When true on an account-scope ALLOW rule that matches, the rule's verdict short-circuits project-scope evaluation. Account-scope rules are evaluated in registration order; the first matching override-flag rule wins. Only valid on account-scope ALLOW rules.
      */
     override_broader_scope?: boolean;
     conditions: PolicyCondition[];

@@ -29,7 +29,10 @@ const PROTOCOL_GETTERS = [
 
 /**
  * Returns a Proxy that exposes policy-enforced versions of write methods on
- * the given account. The original account is never mutated.
+ * the given account. The policy engine itself does not mutate the account
+ * (the WDK manager's `_registerProtocols` step does install
+ * `registerProtocol` / `getXProtocol` helpers on the account before the
+ * proxy is built — that's a separate, pre-existing concern).
  *
  * Nested-call escape falls out naturally from how the Proxy works rather
  * than from any kind of async-context tracking:
@@ -104,11 +107,30 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
 
   const simulate = buildSimulateMirror(Array.from(enforcedMethods.keys()), ctx)
 
-  return new Proxy(account, {
+  // Late-bound reference to the proxy itself, so the `registerProtocol`
+  // interceptor below can return the proxy instead of the raw account.
+  const handle = { proxy: null }
+
+  const proxyHandle = new Proxy(account, {
     get (target, prop) {
       if (enforcedMethods.has(prop)) return enforcedMethods.get(prop)
       if (enforcedGetters.has(prop)) return enforcedGetters.get(prop)
       if (prop === 'simulate') return simulate
+
+      // `account.registerProtocol(...)` returns the raw account by design
+      // (see `_registerProtocols` in wdk-manager.js). Without intercepting
+      // here, `proxy.registerProtocol(...).sendTransaction(...)` would skip
+      // enforcement entirely because the caller is no longer holding the
+      // proxy. Rewrite the return value to the proxy itself.
+      if (prop === 'registerProtocol' && typeof target.registerProtocol === 'function') {
+        const fn = target.registerProtocol.bind(target)
+
+        return (...args) => {
+          fn(...args)
+
+          return handle.proxy
+        }
+      }
 
       const value = Reflect.get(target, prop, target)
 
@@ -120,6 +142,10 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
       return value
     }
   })
+
+  handle.proxy = proxyHandle
+
+  return proxyHandle
 }
 
 function buildEnforcedMethod (name, boundOriginal, ctx) {
@@ -188,7 +214,10 @@ function buildSimulateMirror (methodNames, ctx) {
 
     const writeMethods = PROTOCOL_METHODS[type]
 
-    simulate[getterName] = () => {
+    // Accept the `label` arg for parity with the real `account.getXProtocol(label)`.
+    // Simulation is label-agnostic today; the arg is reserved for Phase 2 if
+    // simulate ever needs to differentiate by protocol label.
+    simulate[getterName] = (_label) => {
       const out = Object.create(null)
 
       for (const method of writeMethods) {

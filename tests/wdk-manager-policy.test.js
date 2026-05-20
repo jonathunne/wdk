@@ -1362,6 +1362,39 @@ describe('WdkManager — policy engine', () => {
       expect(condition).toHaveBeenCalledTimes(1)
       expect(sendTransactionMock).toHaveBeenCalledTimes(1)
     })
+
+    test('account.registerProtocol(...) returns the proxy so chained calls stay enforced (C-2)', async () => {
+      // Regression for C-2: without intercepting registerProtocol in the
+      // proxy's get trap, the underlying _registerProtocols closure hands
+      // back the RAW account, and every subsequent write on that reference
+      // skips policy evaluation.
+      const swapInstanceMock = jest.fn().mockResolvedValue(DUMMY_SWAP_RESULT)
+
+      class MySwapProtocol extends SwapProtocol {
+        constructor () { super() }
+        async swap (opts) { return swapInstanceMock(opts) }
+      }
+
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'deny-send',
+          name: 'deny-send',
+          scope: 'project',
+          rules: [{ name: 'deny', operation: 'sendTransaction', action: 'DENY', conditions: [] }]
+        })
+
+      const account = await wdkManager.getAccount('ethereum', 0)
+      const returned = account.registerProtocol('velora', MySwapProtocol, {})
+
+      // The returned reference MUST still go through enforcement.
+      const err = await catchAsync(() => returned.sendTransaction({ to: RECIPIENT, value: 1n }))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.policyId).toBe('deny-send')
+    })
   })
 
   // -------------------------------------------------------------------------
