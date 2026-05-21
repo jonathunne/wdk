@@ -62,8 +62,8 @@ import {
  * @property {PolicyAction} action
  * @property {boolean} [override_broader_scope] - When true on an account-scope ALLOW rule that matches, the rule's verdict short-circuits project-scope evaluation. Account-scope rules are evaluated in registration order; the first matching override-flag rule wins. Only valid on account-scope ALLOW rules.
  * @property {PolicyCondition[]} conditions
- * @property {object} [state]                                       Reserved for Phase 2; ignored at runtime.
- * @property {(c: PolicyContext) => void | Promise<void>} [onSuccess]   Reserved for Phase 2; ignored at runtime.
+ * @property {object} [state]                                       Reserved for future use; currently ignored at runtime.
+ * @property {(c: PolicyContext) => void | Promise<void>} [onSuccess]   Reserved for future use; currently ignored at runtime.
  */
 
 /**
@@ -82,7 +82,7 @@ import {
 
 /**
  * @typedef {object} RegisterPolicyOptions
- * @property {object} [state] - Reserved for Phase 2.
+ * @property {object} [state] - Reserved for future use; currently ignored at runtime.
  * @property {number} [conditionTimeoutMs] - Per-condition evaluation timeout in milliseconds. Defaults to 30000. A condition that exceeds the timeout is treated the same as a throw — fail-closed for DENY rules, fail-open-as-no-match for ALLOW rules. Engine-wide; the most recent registerPolicy call's value wins.
  */
 

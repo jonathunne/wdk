@@ -14,84 +14,33 @@
 
 'use strict'
 
-import { ACTIONS, OPERATIONS, OPERATIONS_SET, SCOPES, WILDCARD } from './constants.js'
+import { OPERATIONS, WILDCARD } from './constants.js'
 import { PolicyConfigurationError } from './policy-error.js'
+import {
+  formatPolicyError,
+  formatRegisterOptionsError,
+  normalisePolicyWallet,
+  policySchema,
+  registerOptionsSchema
+} from './policy-schemas.js'
 
-const ACTIONS_SET = new Set(ACTIONS)
-const SCOPES_SET = new Set(SCOPES)
+/** @typedef {import('./policy-engine.js').RegisterPolicyOptions} RegisterPolicyOptions */
 
-function isPlainObject (value) {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isNonEmptyString (value) {
-  return typeof value === 'string' && value.length > 0
-}
-
-function isAccountIdentifier (value) {
-  if (isNonEmptyString(value)) return true
-
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
-}
-
-function isAccountsArray (value) {
-  return Array.isArray(value) && value.length > 0 && value.every(isAccountIdentifier)
-}
-
-function isOperationName (value) {
-  return value === WILDCARD || OPERATIONS_SET.has(value)
-}
+export { normalisePolicyWallet }
 
 /**
- * Normalises the wallet field of a policy into an array of non-empty strings
- * or `undefined` (meaning "apply to every registered wallet").
+ * Validates the options bag passed to registerPolicy.
  *
  * @internal
- * @param {string | string[] | undefined} wallet
- * @param {string} policyId - The owning policy's id, used to build error messages.
- * @returns {string[] | undefined}
- */
-export function normalisePolicyWallet (wallet, policyId) {
-  if (wallet === undefined) {
-    return undefined
-  }
-
-  if (typeof wallet === 'string') {
-    if (wallet.length === 0) {
-      throw new PolicyConfigurationError(`Policy '${policyId}': 'wallet' must be a non-empty string.`)
-    }
-
-    return [wallet]
-  }
-
-  if (Array.isArray(wallet) && wallet.length > 0 && wallet.every(isNonEmptyString)) {
-    return Array.from(new Set(wallet))
-  }
-
-  throw new PolicyConfigurationError(`Policy '${policyId}': 'wallet' must be a non-empty string or non-empty array of non-empty strings.`)
-}
-
-/**
- * Validates a registerPolicy options bag (currently only `state`, reserved for Phase 2).
- *
- * @internal
- * @param {object | undefined} options
+ * @param {RegisterPolicyOptions} [options] - Registration options.
  */
 export function validateRegisterOptions (options) {
   if (options === undefined) return
 
-  if (!isPlainObject(options)) {
-    throw new PolicyConfigurationError('registerPolicy options: must be an object.')
-  }
+  const result = registerOptionsSchema.safeParse(options)
 
-  if (options.state !== undefined && !isPlainObject(options.state)) {
-    throw new PolicyConfigurationError("registerPolicy options: 'state' must be an object.")
-  }
-
-  if (options.conditionTimeoutMs !== undefined) {
-    if (typeof options.conditionTimeoutMs !== 'number' || !Number.isFinite(options.conditionTimeoutMs) || options.conditionTimeoutMs <= 0) {
-      throw new PolicyConfigurationError("registerPolicy options: 'conditionTimeoutMs' must be a positive finite number.")
-    }
+  if (!result.success) {
+    throw new PolicyConfigurationError(formatRegisterOptionsError(result.error))
   }
 }
 
@@ -104,119 +53,13 @@ export function validateRegisterOptions (options) {
  * @returns {string[] | undefined} The normalised wallet binding, or undefined for "all wallets".
  */
 export function validatePolicy (policy) {
-  if (!isPlainObject(policy)) {
-    throw new PolicyConfigurationError('Policy: must be an object.')
+  const result = policySchema.safeParse(policy)
+
+  if (!result.success) {
+    throw new PolicyConfigurationError(formatPolicyError(result.error, policy))
   }
 
-  if (!isNonEmptyString(policy.id)) {
-    throw new PolicyConfigurationError("Policy: 'id' is required and must be a non-empty string.")
-  }
-
-  if (!isNonEmptyString(policy.name)) {
-    throw new PolicyConfigurationError(`Policy '${policy.id}': 'name' is required and must be a non-empty string.`)
-  }
-
-  if (!SCOPES_SET.has(policy.scope)) {
-    throw new PolicyConfigurationError(`Policy '${policy.id}': 'scope' must be one of: ${SCOPES.join(', ')}.`)
-  }
-
-  const wallets = normalisePolicyWallet(policy.wallet, policy.id)
-
-  if (policy.scope === 'account') {
-    if (!isAccountsArray(policy.accounts)) {
-      throw new PolicyConfigurationError(`Policy '${policy.id}': 'accounts' is required and must be a non-empty array of derivation paths or non-negative integer indexes when scope is 'account'.`)
-    }
-
-    if (wallets === undefined) {
-      throw new PolicyConfigurationError(`Policy '${policy.id}': account-scope policies must declare a 'wallet' field.`)
-    }
-  } else if (policy.accounts !== undefined) {
-    throw new PolicyConfigurationError(`Policy '${policy.id}': 'accounts' is only allowed when scope is 'account'.`)
-  }
-
-  if (!Array.isArray(policy.rules) || policy.rules.length === 0) {
-    throw new PolicyConfigurationError(`Policy '${policy.id}': 'rules' must be a non-empty array.`)
-  }
-
-  for (const rule of policy.rules) {
-    validateRule(rule, policy)
-  }
-
-  return wallets
-}
-
-function validateRule (rule, policy) {
-  if (!isPlainObject(rule)) {
-    throw new PolicyConfigurationError(`Rule in policy '${policy.id}': rule must be an object.`)
-  }
-
-  if (!isNonEmptyString(rule.name)) {
-    throw new PolicyConfigurationError(`Rule in policy '${policy.id}': 'name' is required and must be a non-empty string.`)
-  }
-
-  validateOperation(rule, policy)
-
-  if (!ACTIONS_SET.has(rule.action)) {
-    throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'action' must be 'ALLOW' or 'DENY'.`)
-  }
-
-  if (rule.override_broader_scope !== undefined) {
-    if (typeof rule.override_broader_scope !== 'boolean') {
-      throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'override_broader_scope' must be a boolean.`)
-    }
-
-    if (rule.override_broader_scope === true && (policy.scope !== 'account' || rule.action !== 'ALLOW')) {
-      throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'override_broader_scope' is only valid on account-scope ALLOW rules.`)
-    }
-  }
-
-  if (rule.reason !== undefined && !isNonEmptyString(rule.reason)) {
-    throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'reason' must be a non-empty string.`)
-  }
-
-  if (!Array.isArray(rule.conditions)) {
-    throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'conditions' must be an array.`)
-  }
-
-  for (let i = 0; i < rule.conditions.length; i++) {
-    if (typeof rule.conditions[i] !== 'function') {
-      throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': condition at index ${i} must be a function.`)
-    }
-  }
-}
-
-function validateOperation (rule, policy) {
-  if (typeof rule.operation === 'string') {
-    if (rule.operation.length === 0) {
-      throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'operation' must be a string or non-empty array of strings.`)
-    }
-
-    if (!isOperationName(rule.operation)) {
-      throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': unknown operation '${rule.operation}'. Supported: ${OPERATIONS.join(', ')}, ${WILDCARD}.`)
-    }
-
-    return
-  }
-
-  if (Array.isArray(rule.operation)) {
-    if (rule.operation.length === 0) {
-      throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'operation' must be a string or non-empty array of strings.`)
-    }
-
-    for (const op of rule.operation) {
-      if (!isNonEmptyString(op)) {
-        throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'operation' must be a string or non-empty array of strings.`)
-      }
-
-      if (!isOperationName(op)) {
-        throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': unknown operation '${op}'. Supported: ${OPERATIONS.join(', ')}, ${WILDCARD}.`)
-      }
-    }
-
-    return
-  }
-
-  throw new PolicyConfigurationError(`Rule '${rule.name}' in policy '${policy.id}': 'operation' must be a string or non-empty array of strings.`)
+  return normalisePolicyWallet(result.data.wallet)
 }
 
 /**
@@ -246,30 +89,19 @@ export function ruleAddressesOperation (rule, operation) {
  * @returns {Set<string>}
  */
 export function collectReferencedOperations (policies) {
-  const out = new Set()
-  let wildcard = false
+  const operations = new Set()
 
   for (const policy of policies) {
     for (const rule of policy.rules) {
-      if (Array.isArray(rule.operation)) {
-        for (const op of rule.operation) {
-          if (op === WILDCARD) {
-            wildcard = true
-          } else {
-            out.add(op)
-          }
-        }
-      } else if (rule.operation === WILDCARD) {
-        wildcard = true
-      } else {
-        out.add(rule.operation)
+      if (rule.operation === WILDCARD || rule.operation.includes?.(WILDCARD)) {
+        return new Set(OPERATIONS)
       }
+
+      Array.isArray(rule.operation)
+        ? rule.operation.forEach((op) => operations.add(op))
+        : operations.add(rule.operation)
     }
   }
 
-  if (wildcard) {
-    for (const op of OPERATIONS) out.add(op)
-  }
-
-  return out
+  return operations
 }

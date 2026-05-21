@@ -94,11 +94,11 @@ export type PolicyRule = {
     override_broader_scope?: boolean;
     conditions: PolicyCondition[];
     /**
-     * Reserved for Phase 2; ignored at runtime.
+     * Reserved for future use; currently ignored at runtime.
      */
     state?: object;
     /**
-     * Reserved for Phase 2; ignored at runtime.
+     * Reserved for future use; currently ignored at runtime.
      */
     onSuccess?: (c: PolicyContext) => void | Promise<void>;
 };
@@ -119,7 +119,7 @@ export type Policy = {
 };
 export type RegisterPolicyOptions = {
     /**
-     * - Reserved for Phase 2.
+     * - Reserved for future use; currently ignored at runtime.
      */
     state?: object;
     /**

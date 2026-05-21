@@ -18,11 +18,11 @@
  * @internal
  *
  * In-memory store for registered policies, partitioned into two buckets:
- *   - `_project`                  project-scope policies, ordered list, indexed by id.
- *   - `_accountByWallet[wallet]`  account-scope policies bound to that wallet
- *                                 identifier (matching against `policy.accounts`
- *                                 entries — paths or indexes — is done at
- *                                 evaluation time).
+ *   - `_project`               project-scope policies, ordered list, indexed by id.
+ *   - `_accountByWallet`       Map<wallet, ordered list of account-scope policies>
+ *                              bound to that wallet identifier (matching against
+ *                              `policy.accounts` entries — paths or indexes — is
+ *                              done at evaluation time).
  *
  * Same-id-within-same-bucket replaces in place, preserving registration order.
  * Different bindings (same id under wallet A vs wallet B vs project) are
@@ -34,7 +34,7 @@ export default class PolicyRegistry {
     this._project = []
 
     /** @private */
-    this._accountByWallet = Object.create(null)
+    this._accountByWallet = new Map()
   }
 
   /**
@@ -63,9 +63,9 @@ export default class PolicyRegistry {
     }
 
     for (const wallet of wallets) {
-      this._accountByWallet[wallet] ??= []
+      if (!this._accountByWallet.has(wallet)) this._accountByWallet.set(wallet, [])
 
-      replaceById(this._accountByWallet[wallet], cloned)
+      replaceById(this._accountByWallet.get(wallet), cloned)
     }
   }
 
@@ -83,9 +83,10 @@ export default class PolicyRegistry {
    */
   applicable (wallet, path, index) {
     const account = []
+    const accountPolicies = this._accountByWallet.get(wallet)
 
-    if (this._accountByWallet[wallet]) {
-      for (const policy of this._accountByWallet[wallet]) {
+    if (accountPolicies) {
+      for (const policy of accountPolicies) {
         if (matchesAccount(policy.accounts, path, index)) {
           account.push(policy)
         }
@@ -130,7 +131,7 @@ export default class PolicyRegistry {
    * @param {string} wallet
    */
   disposeWallet (wallet) {
-    delete this._accountByWallet[wallet]
+    this._accountByWallet.delete(wallet)
 
     this._project = this._project.filter((policy) => {
       if (policy._wallets === undefined) return true
@@ -150,8 +151,7 @@ export default class PolicyRegistry {
    */
   disposeAll () {
     this._project = []
-
-    for (const key of Object.keys(this._accountByWallet)) delete this._accountByWallet[key]
+    this._accountByWallet.clear()
   }
 }
 
@@ -194,8 +194,7 @@ function cloneRule (rule) {
     conditions: [...rule.conditions]
   }
 
-  // Phase 2 reservation: rule.state is engine-managed at runtime in Phase 2.
-  // Deep clone here so the caller's reference cannot be mutated post-registration.
+  // rule.state is reserved; deep clone prevents caller mutation post-registration.
   if (rule.state !== undefined) {
     cloned.state = structuredClone(rule.state)
   }

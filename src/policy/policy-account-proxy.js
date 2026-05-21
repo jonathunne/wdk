@@ -160,11 +160,11 @@ function buildEnforcedMethod (name, boundOriginal, ctx) {
     const verdict = await ctx.engine._evaluateContext(context, { path: ctx.account.path, index: ctx.index })
 
     if (verdict.outcome === 'BLOCK') {
-      throw new PolicyViolationError(
-        verdict.policyId ?? '<unknown>',
-        verdict.ruleName ?? '<unknown>',
-        verdict.reason ?? 'unknown'
-      )
+      throw new PolicyViolationError({
+        policyId: verdict.policyId ?? '<unknown>',
+        ruleName: verdict.ruleName ?? '<unknown>',
+        reason: verdict.reason ?? 'unknown'
+      })
     }
 
     return boundOriginal(...args)
@@ -215,7 +215,7 @@ function buildSimulateMirror (methodNames, ctx) {
     const writeMethods = PROTOCOL_METHODS[type]
 
     // Accept the `label` arg for parity with the real `account.getXProtocol(label)`.
-    // Simulation is label-agnostic today; the arg is reserved for Phase 2 if
+    // Simulation is label-agnostic; the arg is reserved for future use if
     // simulate ever needs to differentiate by protocol label.
     simulate[getterName] = (_label) => {
       const out = Object.create(null)

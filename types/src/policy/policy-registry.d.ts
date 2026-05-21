@@ -2,11 +2,11 @@
  * @internal
  *
  * In-memory store for registered policies, partitioned into two buckets:
- *   - `_project`                  project-scope policies, ordered list, indexed by id.
- *   - `_accountByWallet[wallet]`  account-scope policies bound to that wallet
- *                                 identifier (matching against `policy.accounts`
- *                                 entries — paths or indexes — is done at
- *                                 evaluation time).
+ *   - `_project`               project-scope policies, ordered list, indexed by id.
+ *   - `_accountByWallet`       Map<wallet, ordered list of account-scope policies>
+ *                              bound to that wallet identifier (matching against
+ *                              `policy.accounts` entries — paths or indexes — is
+ *                              done at evaluation time).
  *
  * Same-id-within-same-bucket replaces in place, preserving registration order.
  * Different bindings (same id under wallet A vs wallet B vs project) are

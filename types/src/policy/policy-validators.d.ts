@@ -1,20 +1,10 @@
 /**
- * Normalises the wallet field of a policy into an array of non-empty strings
- * or `undefined` (meaning "apply to every registered wallet").
+ * Validates the options bag passed to registerPolicy.
  *
  * @internal
- * @param {string | string[] | undefined} wallet
- * @param {string} policyId - The owning policy's id, used to build error messages.
- * @returns {string[] | undefined}
+ * @param {RegisterPolicyOptions} [options] - Registration options.
  */
-export function normalisePolicyWallet(wallet: string | string[] | undefined, policyId: string): string[] | undefined;
-/**
- * Validates a registerPolicy options bag (currently only `state`, reserved for Phase 2).
- *
- * @internal
- * @param {object | undefined} options
- */
-export function validateRegisterOptions(options: object | undefined): void;
+export function validateRegisterOptions(options?: RegisterPolicyOptions): void;
 /**
  * Validates a single policy object and returns the normalised wallet binding.
  * Throws synchronously on the first failure.
@@ -42,3 +32,6 @@ export function ruleAddressesOperation(rule: object, operation: string): boolean
  * @returns {Set<string>}
  */
 export function collectReferencedOperations(policies: Iterable<object>): Set<string>;
+export { normalisePolicyWallet };
+export type RegisterPolicyOptions = import("./policy-engine.js").RegisterPolicyOptions;
+import { normalisePolicyWallet } from './policy-schemas.js';

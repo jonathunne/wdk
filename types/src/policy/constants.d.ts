@@ -1,27 +1,10 @@
-/**
- * The complete set of write-facing operations the policy engine wraps in Phase 1.
- * The wildcard `*` matches any of them.
- *
- * @internal
- */
-export const OPERATIONS: readonly string[];
-/** @internal */
-export const OPERATIONS_SET: Set<string>;
-/** @internal */
+export const OPERATIONS: string[];
 export const WILDCARD: "*";
-/** @internal */
-export const SCOPES: readonly string[];
-/** @internal */
-export const ACTIONS: readonly string[];
-/**
- * Maps each protocol type to the methods on its instances that the engine wraps.
- * Quote variants are intentionally absent.
- *
- * @internal
- */
-export const PROTOCOL_METHODS: Readonly<{
-    swap: string[];
-    bridge: string[];
-    lending: string[];
-    fiat: string[];
-}>;
+export const SCOPES: string[];
+export const ACTIONS: string[];
+export namespace PROTOCOL_METHODS {
+    let swap: string[];
+    let bridge: string[];
+    let lending: string[];
+    let fiat: string[];
+}

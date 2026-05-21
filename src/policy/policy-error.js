@@ -15,43 +15,58 @@
 'use strict'
 
 /**
- * Thrown by a wrapped wallet account method when a registered policy blocks
- * the attempted operation. Carries the policy id, rule name, and a
- * human-readable reason so callers (developers, agent runtimes) can react.
+ * Error type produced by the policy engine on a DENY verdict.
  */
 export default class PolicyViolationError extends Error {
+  #policyId
+  #ruleName
+  #reason
+
   /**
-   * @param {string} policyId - The id of the policy that produced the verdict.
-   * @param {string} ruleName - The name of the matching rule.
-   * @param {string} reason - A human-readable explanation.
+   * Constructs the error from the identifying triple of the policy verdict.
+   *
+   * @param {object} verdict
+   * @param {string} verdict.policyId - The id of the policy that produced the verdict.
+   * @param {string} verdict.ruleName - The name of the matching rule.
+   * @param {string} verdict.reason - Human-readable explanation of why the operation was blocked.
    */
-  constructor (policyId, ruleName, reason) {
+  constructor ({ policyId, ruleName, reason }) {
     const suffix = reason && reason !== ruleName ? `: ${reason}` : ''
 
     super(`Policy violation: ${policyId}/${ruleName}${suffix}`)
 
     this.name = 'PolicyViolationError'
-
-    /** @type {string} */
-    this.policyId = policyId
-
-    /** @type {string} */
-    this.ruleName = ruleName
-
-    /** @type {string} */
-    this.reason = reason
+    this.#policyId = policyId
+    this.#ruleName = ruleName
+    this.#reason = reason
   }
+
+  /**
+   * The id of the policy that produced the verdict.
+   * @returns {string}
+   */
+  get policyId () { return this.#policyId }
+
+  /**
+   * The name of the rule within the policy that matched.
+   * @returns {string}
+   */
+  get ruleName () { return this.#ruleName }
+
+  /**
+   * Human-readable explanation of why the operation was blocked.
+   * @returns {string}
+   */
+  get reason () { return this.#reason }
 }
 
 /**
- * Thrown synchronously by registerPolicy() and the underlying validators when
- * a policy or registration call is malformed (unknown operation, missing
- * required field, contradictory configuration, etc.). Distinct from
- * PolicyViolationError, which fires at runtime when a registered policy
- * blocks a transaction.
+ * Error type produced by the policy engine for invalid registration inputs.
  */
 export class PolicyConfigurationError extends Error {
   /**
+   * Constructs the error with the given configuration-problem explanation.
+   *
    * @param {string} message - Human-readable explanation of the configuration problem.
    */
   constructor (message) {

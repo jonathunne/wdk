@@ -14,13 +14,7 @@
 
 'use strict'
 
-/**
- * The complete set of write-facing operations the policy engine wraps in Phase 1.
- * The wildcard `*` matches any of them.
- *
- * @internal
- */
-export const OPERATIONS = Object.freeze([
+export const OPERATIONS = [
   'sendTransaction',
   'transfer',
   'approve',
@@ -38,29 +32,17 @@ export const OPERATIONS = Object.freeze([
   'repay',
   'buy',
   'sell'
-])
+]
 
-/** @internal */
-export const OPERATIONS_SET = new Set(OPERATIONS)
-
-/** @internal */
 export const WILDCARD = '*'
 
-/** @internal */
-export const SCOPES = Object.freeze(['project', 'account'])
+export const SCOPES = ['project', 'account']
 
-/** @internal */
-export const ACTIONS = Object.freeze(['ALLOW', 'DENY'])
+export const ACTIONS = ['ALLOW', 'DENY']
 
-/**
- * Maps each protocol type to the methods on its instances that the engine wraps.
- * Quote variants are intentionally absent.
- *
- * @internal
- */
-export const PROTOCOL_METHODS = Object.freeze({
+export const PROTOCOL_METHODS = {
   swap: ['swap'],
   bridge: ['bridge'],
   lending: ['supply', 'withdraw', 'borrow', 'repay'],
   fiat: ['buy', 'sell']
-})
+}
