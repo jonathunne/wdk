@@ -8,9 +8,8 @@
  */
 export function normalisePolicyWallet(wallet: string | string[] | undefined): string[] | undefined;
 /**
- * Translates the first issue of a ZodError into a human-readable string,
- * scoped to the policy whose validation failed. Replicates the message
- * format used by the engine since v1.0.
+ * Builds a human-readable message for the first issue in a ZodError,
+ * prefixed with the policy (and rule, when applicable) context.
  *
  * @internal
  * @param {import('zod').ZodError} zodError
@@ -19,8 +18,8 @@ export function normalisePolicyWallet(wallet: string | string[] | undefined): st
  */
 export function formatPolicyError(zodError: import("zod").ZodError, policy: object): string;
 /**
- * Translates the first issue of a ZodError thrown by the registerOptions
- * schema into a registerPolicy-specific human-readable message.
+ * Builds a human-readable message for the first issue in a ZodError thrown
+ * by the registerOptions schema.
  *
  * @internal
  * @param {import('zod').ZodError} zodError

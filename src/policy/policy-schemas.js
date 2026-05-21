@@ -56,32 +56,15 @@ export const policySchema = z.object({
   accounts: z.array(accountIdentifier).nonempty().optional(),
   rules: z.array(ruleSchema).nonempty()
 }).superRefine((policy, ctx) => {
-  const fromRefine = { fromRefine: true }
-
   if (policy.scope === 'account') {
     if (policy.accounts === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['accounts'],
-        message: `Policy '${policy.id}': 'accounts' is required and must be a non-empty array of derivation paths or non-negative integer indexes when scope is 'account'.`,
-        params: fromRefine
-      })
+      ctx.addIssue({ code: 'custom', path: ['accounts'], message: "'accounts' is required when scope is 'account'" })
     }
     if (policy.wallet === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['wallet'],
-        message: `Policy '${policy.id}': account-scope policies must declare a 'wallet' field.`,
-        params: fromRefine
-      })
+      ctx.addIssue({ code: 'custom', path: ['wallet'], message: "'wallet' is required when scope is 'account'" })
     }
   } else if (policy.accounts !== undefined) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['accounts'],
-      message: `Policy '${policy.id}': 'accounts' is only allowed when scope is 'account'.`,
-      params: fromRefine
-    })
+    ctx.addIssue({ code: 'custom', path: ['accounts'], message: "'accounts' is only allowed when scope is 'account'" })
   }
 
   policy.rules?.forEach((rule, i) => {
@@ -89,8 +72,7 @@ export const policySchema = z.object({
       ctx.addIssue({
         code: 'custom',
         path: ['rules', i, 'override_broader_scope'],
-        message: `Rule '${rule.name}' in policy '${policy.id}': 'override_broader_scope' is only valid on account-scope ALLOW rules.`,
-        params: fromRefine
+        message: "'override_broader_scope' is only valid on account-scope ALLOW rules"
       })
     }
   })
@@ -116,9 +98,8 @@ export function normalisePolicyWallet (wallet) {
 }
 
 /**
- * Translates the first issue of a ZodError into a human-readable string,
- * scoped to the policy whose validation failed. Replicates the message
- * format used by the engine since v1.0.
+ * Builds a human-readable message for the first issue in a ZodError,
+ * prefixed with the policy (and rule, when applicable) context.
  *
  * @internal
  * @param {import('zod').ZodError} zodError
@@ -127,81 +108,30 @@ export function normalisePolicyWallet (wallet) {
  */
 export function formatPolicyError (zodError, policy) {
   const issue = zodError.issues[0]
-  const { path, code, message: zodMessage, params } = issue
+  const { path, message } = issue
 
-  // Messages emitted by our superRefine carry the final text already.
-  if (code === 'custom' && params?.fromRefine) return zodMessage
-
-  if (path.length === 0) return 'Policy: must be an object.'
-
-  const top = path[0]
   const id = policy?.id
-  const idStr = typeof id === 'string' && id.length > 0 ? `Policy '${id}'` : 'Policy'
+  const policyLabel = typeof id === 'string' && id.length > 0 ? `Policy '${id}'` : 'Policy'
 
-  if (top === 'id') return "Policy: 'id' is required and must be a non-empty string."
-  if (top === 'name') return `${idStr}: 'name' is required and must be a non-empty string.`
-  if (top === 'scope') return `${idStr}: 'scope' must be one of: ${SCOPES.join(', ')}.`
-
-  if (top === 'wallet') {
-    if (typeof policy?.wallet === 'string') return `${idStr}: 'wallet' must be a non-empty string.`
-    return `${idStr}: 'wallet' must be a non-empty string or non-empty array of non-empty strings.`
-  }
-
-  if (top === 'accounts') {
-    return `${idStr}: 'accounts' is required and must be a non-empty array of derivation paths or non-negative integer indexes when scope is 'account'.`
-  }
-
-  if (top === 'rules') {
-    if (path.length === 1) return `${idStr}: 'rules' must be a non-empty array.`
-
-    const ruleIdx = path[1]
-    const rule = policy?.rules?.[ruleIdx]
+  if (path[0] === 'rules' && path.length > 1) {
+    const rule = policy?.rules?.[path[1]]
     const ruleName = rule?.name
-    const ruleStr = typeof ruleName === 'string' && ruleName.length > 0
+    const ruleLabel = typeof ruleName === 'string' && ruleName.length > 0
       ? `Rule '${ruleName}' in policy '${id}'`
       : `Rule in policy '${id}'`
+    const subPath = path.slice(2).join('.')
 
-    if (path.length === 2) return `Rule in policy '${id}': rule must be an object.`
-
-    const field = path[2]
-
-    if (field === 'name') return `Rule in policy '${id}': 'name' is required and must be a non-empty string.`
-
-    if (field === 'operation') {
-      const op = readOperationAtPath(rule, path)
-
-      if (typeof op === 'string' && !OPERATION_NAMES.includes(op)) {
-        return `${ruleStr}: unknown operation '${op}'. Supported: ${OPERATIONS.join(', ')}, ${WILDCARD}.`
-      }
-
-      return `${ruleStr}: 'operation' must be a string or non-empty array of strings.`
-    }
-
-    if (field === 'action') return `${ruleStr}: 'action' must be 'ALLOW' or 'DENY'.`
-    if (field === 'override_broader_scope') return `${ruleStr}: 'override_broader_scope' must be a boolean.`
-    if (field === 'reason') return `${ruleStr}: 'reason' must be a non-empty string.`
-
-    if (field === 'conditions') {
-      if (path.length === 3) return `${ruleStr}: 'conditions' must be an array.`
-
-      return `${ruleStr}: condition at index ${path[3]} must be a function.`
-    }
+    return `${ruleLabel}${subPath ? `: '${subPath}'` : ''}: ${message}`
   }
 
-  return `${idStr}: ${path.join('.')}: ${zodMessage}`
-}
+  const pathStr = path.join('.')
 
-function readOperationAtPath (rule, path) {
-  if (path.length === 3) return rule?.operation
-
-  const idx = path[3]
-
-  return Array.isArray(rule?.operation) ? rule.operation[idx] : rule?.operation
+  return `${policyLabel}${pathStr ? `: '${pathStr}'` : ''}: ${message}`
 }
 
 /**
- * Translates the first issue of a ZodError thrown by the registerOptions
- * schema into a registerPolicy-specific human-readable message.
+ * Builds a human-readable message for the first issue in a ZodError thrown
+ * by the registerOptions schema.
  *
  * @internal
  * @param {import('zod').ZodError} zodError
@@ -209,11 +139,7 @@ function readOperationAtPath (rule, path) {
  */
 export function formatRegisterOptionsError (zodError) {
   const issue = zodError.issues[0]
-  const path = issue.path
+  const pathStr = issue.path.join('.')
 
-  if (path.length === 0) return 'registerPolicy options: must be an object.'
-  if (path[0] === 'state') return "registerPolicy options: 'state' must be an object."
-  if (path[0] === 'conditionTimeoutMs') return "registerPolicy options: 'conditionTimeoutMs' must be a positive finite number."
-
-  return `registerPolicy options: ${path.join('.')}: ${issue.message}`
+  return `registerPolicy options${pathStr ? `: '${pathStr}'` : ''}: ${issue.message}`
 }

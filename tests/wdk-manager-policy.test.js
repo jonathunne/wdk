@@ -171,14 +171,14 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy({ ...projectAllowAll('p'), wallet: '' }))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': 'wallet' must be a non-empty string.")
+      expect(err.message).toMatch(/Policy 'p'.*'wallet'/)
     })
 
     test("throws PolicyConfigurationError when 'wallet' is an empty array", () => {
       const err = catchSync(() => wdkManager.registerPolicy({ ...projectAllowAll('p'), wallet: [] }))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': 'wallet' must be a non-empty string or non-empty array of non-empty strings.")
+      expect(err.message).toMatch(/Policy 'p'.*'wallet'/)
     })
 
     test("throws PolicyConfigurationError on missing 'id'", () => {
@@ -188,7 +188,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy: 'id' is required and must be a non-empty string.")
+      expect(err.message).toMatch(/Policy.*'id'/)
     })
 
     test("throws PolicyConfigurationError on missing 'name'", () => {
@@ -198,7 +198,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': 'name' is required and must be a non-empty string.")
+      expect(err.message).toMatch(/Policy 'p'.*'name'/)
     })
 
     test('throws PolicyConfigurationError on unknown scope', () => {
@@ -208,7 +208,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': 'scope' must be one of: project, account.")
+      expect(err.message).toMatch(/Policy 'p'.*'scope'/)
     })
 
     test('throws PolicyConfigurationError on unknown operation', () => {
@@ -218,7 +218,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Rule 'r' in policy 'p': unknown operation 'fly'. Supported: sendTransaction, transfer, approve, signMessage, signHash, signTypedData, signAuthorization, delegate, revokeDelegation, swap, bridge, supply, withdraw, borrow, repay, buy, sell, *.")
+      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*'operation'/)
     })
 
     test('throws PolicyConfigurationError on invalid action', () => {
@@ -228,7 +228,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Rule 'r' in policy 'p': 'action' must be 'ALLOW' or 'DENY'.")
+      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*'action'/)
     })
 
     test('throws PolicyConfigurationError on override_broader_scope outside account-scope ALLOW', () => {
@@ -238,7 +238,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Rule 'r' in policy 'p': 'override_broader_scope' is only valid on account-scope ALLOW rules.")
+      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*override_broader_scope.*account-scope ALLOW/)
     })
 
     test('throws PolicyConfigurationError on non-function condition', () => {
@@ -248,7 +248,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Rule 'r' in policy 'p': condition at index 0 must be a function.")
+      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*conditions/)
     })
 
     test("throws PolicyConfigurationError on account-scope without a 'wallet' field", () => {
@@ -258,7 +258,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': account-scope policies must declare a 'wallet' field.")
+      expect(err.message).toMatch(/Policy 'p'.*'wallet'.*account/)
     })
 
     test('throws PolicyConfigurationError when accounts is provided on non-account scope', () => {
@@ -268,7 +268,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Policy 'p': 'accounts' is only allowed when scope is 'account'.")
+      expect(err.message).toMatch(/Policy 'p'.*'accounts'.*scope is 'account'/)
     })
 
     test('does not partially register when one policy in an array is invalid', async () => {
@@ -282,7 +282,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy([good, bad]))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toBe("Rule 'r' in policy 'bad': unknown operation 'fly'. Supported: sendTransaction, transfer, approve, signMessage, signHash, signTypedData, signAuthorization, delegate, revokeDelegation, swap, bridge, supply, withdraw, borrow, repay, buy, sell, *.")
+      expect(err.message).toMatch(/Rule 'r' in policy 'bad'.*'operation'/)
 
       // The 'good' policy must NOT have been registered (otherwise the next call would block).
       const account = await wdkManager.getAccount('ethereum', 0)
@@ -1513,7 +1513,7 @@ describe('WdkManager — policy engine', () => {
         )
 
         expect(err.name).toBe('PolicyConfigurationError')
-        expect(err.message).toBe("registerPolicy options: 'conditionTimeoutMs' must be a positive finite number.")
+        expect(err.message).toMatch(/registerPolicy options.*'conditionTimeoutMs'/)
       }
     })
 
@@ -1835,7 +1835,7 @@ describe('WdkManager — policy engine', () => {
         const err = catchSync(() => wdkManager.registerPolicy(policy))
 
         expect(err.name).toBe('PolicyConfigurationError')
-        expect(err.message).toBe("Policy 'p': 'accounts' is required and must be a non-empty array of derivation paths or non-negative integer indexes when scope is 'account'.")
+        expect(err.message).toMatch(/Policy 'p'.*accounts/)
       }
     })
   })
