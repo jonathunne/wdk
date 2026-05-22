@@ -15,6 +15,7 @@
 'use strict'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccountReadOnly} IWalletAccountReadOnly */
+/** @typedef {import('./policy-engine.js').PolicyContext} PolicyContext */
 
 /**
  * Builds the immutable context object passed to every condition function.
@@ -30,12 +31,12 @@
  * their raw value.
  *
  * @internal
- * @param {object} input
+ * @param {Object} input - The raw inputs from the wrapper.
  * @param {string} input.operation - The wrapped operation name (e.g. 'sendTransaction').
  * @param {string} input.wallet - The wallet identifier this account belongs to (the same string passed to `registerWallet`).
  * @param {IWalletAccountReadOnly} input.account - A read-only view of the wallet account.
  * @param {readonly unknown[]} input.args - The full argument array passed to the method.
- * @returns {object} A frozen context object: { operation, wallet, account, params, args }.
+ * @returns {PolicyContext} A frozen context object.
  */
 export function buildContext ({ operation, wallet, account, args }) {
   const safeArgs = Object.freeze(Array.from(args, snapshot))

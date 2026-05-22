@@ -3,7 +3,7 @@
  * non-empty strings or `undefined` (meaning "apply to every registered wallet").
  *
  * @internal
- * @param {string | string[] | undefined} wallet
+ * @param {string | string[] | undefined} wallet - The raw `wallet` field from a parsed policy.
  * @returns {string[] | undefined}
  */
 export function normalisePolicyWallet(wallet: string | string[] | undefined): string[] | undefined;
@@ -12,20 +12,25 @@ export function normalisePolicyWallet(wallet: string | string[] | undefined): st
  * prefixed with the policy (and rule, when applicable) context.
  *
  * @internal
- * @param {import('zod').ZodError} zodError
- * @param {object} policy - The policy object that failed validation.
+ * @param {ZodError} zodError - The error returned by `policySchema.safeParse`.
+ * @param {Policy} policy - The policy candidate that failed validation; used to look up id and rule names for the prefix.
  * @returns {string}
  */
-export function formatPolicyError(zodError: import("zod").ZodError, policy: object): string;
+export function formatPolicyError(zodError: ZodError, policy: Policy): string;
 /**
  * Builds a human-readable message for the first issue in a ZodError thrown
  * by the registerOptions schema.
  *
  * @internal
- * @param {import('zod').ZodError} zodError
+ * @param {ZodError} zodError - The error returned by `registerOptionsSchema.safeParse`.
  * @returns {string}
  */
-export function formatRegisterOptionsError(zodError: import("zod").ZodError): string;
+export function formatRegisterOptionsError(zodError: ZodError): string;
+/**
+ * Zod schema for a single policy object. Validates id/name/scope/rules and
+ * enforces cross-field rules (account-scope requirements, override constraint)
+ * via a superRefine.
+ */
 export const policySchema: z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
@@ -51,8 +56,13 @@ export const policySchema: z.ZodObject<{
         onSuccess: z.ZodOptional<z.ZodCustom<any, any>>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/**
+ * Zod schema for the optional `registerPolicy` options bag.
+ */
 export const registerOptionsSchema: z.ZodOptional<z.ZodObject<{
     state: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     conditionTimeoutMs: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strip>>;
+export type ZodError = import("zod").ZodError;
+export type Policy = import("./policy-engine.js").Policy;
 import { z } from 'zod';

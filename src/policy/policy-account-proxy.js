@@ -19,6 +19,7 @@ import { buildContext } from './policy-context.js'
 import PolicyViolationError, { PolicyConfigurationError } from './policy-error.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
+/** @typedef {import('./policy-engine.js').default} PolicyEngine */
 
 const PROTOCOL_GETTERS = [
   ['getSwapProtocol', 'swap'],
@@ -56,12 +57,12 @@ const PROTOCOL_GETTERS = [
  *
  * @internal
  * @param {IWalletAccount} account - The underlying account from the wallet manager.
- * @param {object} options
- * @param {string} options.blockchain - The wallet identifier.
- * @param {string | undefined} options.path
- * @param {number | undefined} options.index
- * @param {object} options.engine - The PolicyEngine instance.
- * @returns {Promise<object>} The proxy-wrapped account, or the original if no policy applies.
+ * @param {Object} options - Wrap context.
+ * @param {string} options.blockchain - The wallet identifier (treated as an opaque key by the engine).
+ * @param {string | undefined} options.path - Derivation path of the account, when known.
+ * @param {number | undefined} options.index - Index passed to `wdk.getAccount(wallet, index)`, when known.
+ * @param {PolicyEngine} options.engine - The PolicyEngine instance the proxy delegates evaluation to.
+ * @returns {Promise<IWalletAccount>} The proxy-wrapped account, or the original if no policy applies.
  */
 export async function createPolicyEnforcedAccount (account, { blockchain, path, index, engine }) {
   const relevantOps = engine._relevantOperations(blockchain, path, index)

@@ -1,20 +1,19 @@
 /**
+ * @typedef {Object} PolicyVerdict
+ * @property {string} policyId - The id of the policy that produced the verdict.
+ * @property {string} ruleName - The name of the matching rule.
+ * @property {string} reason - Human-readable explanation of why the operation was blocked.
+ */
+/**
  * Error type produced by the policy engine on a DENY verdict.
  */
 export default class PolicyViolationError extends Error {
     /**
      * Constructs the error from the identifying triple of the policy verdict.
      *
-     * @param {object} verdict
-     * @param {string} verdict.policyId - The id of the policy that produced the verdict.
-     * @param {string} verdict.ruleName - The name of the matching rule.
-     * @param {string} verdict.reason - Human-readable explanation of why the operation was blocked.
+     * @param {PolicyVerdict} verdict - The verdict triple identifying which policy, which rule, and why.
      */
-    constructor({ policyId, ruleName, reason }: {
-        policyId: string;
-        ruleName: string;
-        reason: string;
-    });
+    constructor({ policyId, ruleName, reason }: PolicyVerdict);
     /**
      * The id of the policy that produced the verdict.
      * @returns {string}
@@ -43,3 +42,17 @@ export class PolicyConfigurationError extends Error {
      */
     constructor(message: string);
 }
+export type PolicyVerdict = {
+    /**
+     * - The id of the policy that produced the verdict.
+     */
+    policyId: string;
+    /**
+     * - The name of the matching rule.
+     */
+    ruleName: string;
+    /**
+     * - Human-readable explanation of why the operation was blocked.
+     */
+    reason: string;
+};

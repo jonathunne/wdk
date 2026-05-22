@@ -15,6 +15,13 @@
 'use strict'
 
 /**
+ * @typedef {Object} PolicyVerdict
+ * @property {string} policyId - The id of the policy that produced the verdict.
+ * @property {string} ruleName - The name of the matching rule.
+ * @property {string} reason - Human-readable explanation of why the operation was blocked.
+ */
+
+/**
  * Error type produced by the policy engine on a DENY verdict.
  */
 export default class PolicyViolationError extends Error {
@@ -25,10 +32,7 @@ export default class PolicyViolationError extends Error {
   /**
    * Constructs the error from the identifying triple of the policy verdict.
    *
-   * @param {object} verdict
-   * @param {string} verdict.policyId - The id of the policy that produced the verdict.
-   * @param {string} verdict.ruleName - The name of the matching rule.
-   * @param {string} verdict.reason - Human-readable explanation of why the operation was blocked.
+   * @param {PolicyVerdict} verdict - The verdict triple identifying which policy, which rule, and why.
    */
   constructor ({ policyId, ruleName, reason }) {
     const suffix = reason && reason !== ruleName ? `: ${reason}` : ''

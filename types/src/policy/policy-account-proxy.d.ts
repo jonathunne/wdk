@@ -27,17 +27,18 @@
  *
  * @internal
  * @param {IWalletAccount} account - The underlying account from the wallet manager.
- * @param {object} options
- * @param {string} options.blockchain - The wallet identifier.
- * @param {string | undefined} options.path
- * @param {number | undefined} options.index
- * @param {object} options.engine - The PolicyEngine instance.
- * @returns {Promise<object>} The proxy-wrapped account, or the original if no policy applies.
+ * @param {Object} options - Wrap context.
+ * @param {string} options.blockchain - The wallet identifier (treated as an opaque key by the engine).
+ * @param {string | undefined} options.path - Derivation path of the account, when known.
+ * @param {number | undefined} options.index - Index passed to `wdk.getAccount(wallet, index)`, when known.
+ * @param {PolicyEngine} options.engine - The PolicyEngine instance the proxy delegates evaluation to.
+ * @returns {Promise<IWalletAccount>} The proxy-wrapped account, or the original if no policy applies.
  */
 export function createPolicyEnforcedAccount(account: IWalletAccount, { blockchain, path, index, engine }: {
     blockchain: string;
     path: string | undefined;
     index: number | undefined;
-    engine: object;
-}): Promise<object>;
+    engine: PolicyEngine;
+}): Promise<IWalletAccount>;
 export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
+export type PolicyEngine = import("./policy-engine.js").default;

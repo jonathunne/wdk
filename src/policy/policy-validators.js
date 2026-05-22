@@ -24,6 +24,8 @@ import {
   registerOptionsSchema
 } from './policy-schemas.js'
 
+/** @typedef {import('./policy-engine.js').Policy} Policy */
+/** @typedef {import('./policy-engine.js').PolicyRule} PolicyRule */
 /** @typedef {import('./policy-engine.js').RegisterPolicyOptions} RegisterPolicyOptions */
 
 export { normalisePolicyWallet }
@@ -32,7 +34,7 @@ export { normalisePolicyWallet }
  * Validates the options bag passed to registerPolicy.
  *
  * @internal
- * @param {RegisterPolicyOptions} [options] - Registration options.
+ * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`.
  */
 export function validateRegisterOptions (options) {
   if (options === undefined) return
@@ -49,7 +51,7 @@ export function validateRegisterOptions (options) {
  * Throws synchronously on the first failure.
  *
  * @internal
- * @param {object} policy - The policy to validate.
+ * @param {Policy} policy - A user-supplied policy candidate; may be malformed.
  * @returns {string[] | undefined} The normalised wallet binding, or undefined for "all wallets".
  */
 export function validatePolicy (policy) {
@@ -66,9 +68,9 @@ export function validatePolicy (policy) {
  * Returns true if the given rule addresses the supplied operation.
  *
  * @internal
- * @param {object} rule
- * @param {string} operation
- * @returns {boolean}
+ * @param {PolicyRule} rule - The rule under evaluation.
+ * @param {string} operation - The operation name being checked (e.g. 'sendTransaction').
+ * @returns {boolean} True if the rule's operation field includes this operation (literal or via wildcard).
  */
 export function ruleAddressesOperation (rule, operation) {
   if (rule.operation === operation || rule.operation === WILDCARD) return true
@@ -85,8 +87,8 @@ export function ruleAddressesOperation (rule, operation) {
  * If any rule uses the wildcard, the result includes the full operation set.
  *
  * @internal
- * @param {Iterable<object>} policies
- * @returns {Set<string>}
+ * @param {Iterable<Policy>} policies - The policies whose rules should be scanned.
+ * @returns {Set<string>} Operation names that need wrapping for this account.
  */
 export function collectReferencedOperations (policies) {
   const operations = new Set()

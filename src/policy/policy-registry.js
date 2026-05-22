@@ -14,9 +14,15 @@
 
 'use strict'
 
+/** @typedef {import('./policy-engine.js').Policy} Policy */
+
 /**
- * @internal
- *
+ * @typedef {Object} PolicyGroups
+ * @property {Policy[]} account - Account-scope policies applicable to the call.
+ * @property {Policy[]} project - Project-scope policies applicable to the call.
+ */
+
+/**
  * In-memory store for registered policies, partitioned into two buckets:
  *   - `_project`               project-scope policies, ordered list, indexed by id.
  *   - `_accountByWallet`       Map<wallet, ordered list of account-scope policies>
@@ -27,6 +33,8 @@
  * Same-id-within-same-bucket replaces in place, preserving registration order.
  * Different bindings (same id under wallet A vs wallet B vs project) are
  * independent records.
+ *
+ * @internal
  */
 export default class PolicyRegistry {
   constructor () {
@@ -47,8 +55,8 @@ export default class PolicyRegistry {
    * Stores a defensive deep-ish clone of the policy so callers cannot mutate
    * engine state by editing the original object after registration.
    *
-   * @param {object} policy
-   * @param {string[] | undefined} wallets
+   * @param {Policy} policy - The policy to clone and store.
+   * @param {string[] | undefined} wallets - Wallet identifiers the policy binds to. Required for account-scope; undefined for global project-scope.
    */
   add (policy, wallets) {
     const cloned = clonePolicy(policy)
@@ -76,10 +84,10 @@ export default class PolicyRegistry {
    * or the index (number match). A project-scope policy matches when it
    * has no wallet restriction or its restriction includes the wallet.
    *
-   * @param {string} wallet
-   * @param {string | undefined} path
-   * @param {number | undefined} index
-   * @returns {{ account: object[], project: object[] }}
+   * @param {string} wallet - The wallet identifier the call targets.
+   * @param {string | undefined} path - Derivation path of the account, when known.
+   * @param {number | undefined} index - Account index, when known.
+   * @returns {PolicyGroups} The applicable policies partitioned by scope.
    */
   applicable (wallet, path, index) {
     const account = []
@@ -109,10 +117,10 @@ export default class PolicyRegistry {
    * regardless of scope. Used to compute the operation-name set the wrapper
    * needs to handle.
    *
-   * @param {string} wallet
-   * @param {string | undefined} path
-   * @param {number | undefined} index
-   * @returns {object[]}
+   * @param {string} wallet - The wallet identifier the call targets.
+   * @param {string | undefined} path - Derivation path of the account, when known.
+   * @param {number | undefined} index - Account index, when known.
+   * @returns {Policy[]} All applicable policies flattened across scopes.
    */
   relevant (wallet, path, index) {
     const { account, project } = this.applicable(wallet, path, index)
@@ -128,7 +136,7 @@ export default class PolicyRegistry {
    *   policy is removed entirely.
    * - global (unrestricted) project-scope policies are untouched.
    *
-   * @param {string} wallet
+   * @param {string} wallet - The wallet identifier being disposed.
    */
   disposeWallet (wallet) {
     this._accountByWallet.delete(wallet)

@@ -182,9 +182,9 @@ export default class WDK {
    * Multiple `registerPolicy` calls stack. If a policy with the same id is
    * registered twice into the same binding, the second call replaces the first.
    *
-   * @param {Policy | Policy[]} policies - A single policy or array of policies.
-   * @param {RegisterPolicyOptions} [options]
-   * @returns {WDK}
+   * @param {Policy | Policy[]} policies - A single policy or array of policies to register on this WDK instance.
+   * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`. The most recent call's value wins.
+   * @returns {WDK} The same WDK instance, for chaining.
    */
   registerPolicy (policies, options) {
     const knownWallets = new Set(this._wallets.keys())

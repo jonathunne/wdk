@@ -18,6 +18,9 @@ import { z } from 'zod'
 
 import { ACTIONS, OPERATIONS, SCOPES, WILDCARD } from './constants.js'
 
+/** @typedef {import('zod').ZodError} ZodError */
+/** @typedef {import('./policy-engine.js').Policy} Policy */
+
 const OPERATION_NAMES = [...OPERATIONS, WILDCARD]
 
 const operationField = z.union([
@@ -48,6 +51,11 @@ const walletField = z.union([
   z.array(z.string().min(1)).nonempty()
 ]).optional()
 
+/**
+ * Zod schema for a single policy object. Validates id/name/scope/rules and
+ * enforces cross-field rules (account-scope requirements, override constraint)
+ * via a superRefine.
+ */
 export const policySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -78,6 +86,9 @@ export const policySchema = z.object({
   })
 })
 
+/**
+ * Zod schema for the optional `registerPolicy` options bag.
+ */
 export const registerOptionsSchema = z.object({
   state: z.record(z.string(), z.unknown()).optional(),
   conditionTimeoutMs: z.number().finite().positive().optional()
@@ -88,7 +99,7 @@ export const registerOptionsSchema = z.object({
  * non-empty strings or `undefined` (meaning "apply to every registered wallet").
  *
  * @internal
- * @param {string | string[] | undefined} wallet
+ * @param {string | string[] | undefined} wallet - The raw `wallet` field from a parsed policy.
  * @returns {string[] | undefined}
  */
 export function normalisePolicyWallet (wallet) {
@@ -102,8 +113,8 @@ export function normalisePolicyWallet (wallet) {
  * prefixed with the policy (and rule, when applicable) context.
  *
  * @internal
- * @param {import('zod').ZodError} zodError
- * @param {object} policy - The policy object that failed validation.
+ * @param {ZodError} zodError - The error returned by `policySchema.safeParse`.
+ * @param {Policy} policy - The policy candidate that failed validation; used to look up id and rule names for the prefix.
  * @returns {string}
  */
 export function formatPolicyError (zodError, policy) {
@@ -134,7 +145,7 @@ export function formatPolicyError (zodError, policy) {
  * by the registerOptions schema.
  *
  * @internal
- * @param {import('zod').ZodError} zodError
+ * @param {ZodError} zodError - The error returned by `registerOptionsSchema.safeParse`.
  * @returns {string}
  */
 export function formatRegisterOptionsError (zodError) {

@@ -2,7 +2,7 @@
  * Validates the options bag passed to registerPolicy.
  *
  * @internal
- * @param {RegisterPolicyOptions} [options] - Registration options.
+ * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`.
  */
 export function validateRegisterOptions(options?: RegisterPolicyOptions): void;
 /**
@@ -10,28 +10,30 @@ export function validateRegisterOptions(options?: RegisterPolicyOptions): void;
  * Throws synchronously on the first failure.
  *
  * @internal
- * @param {object} policy - The policy to validate.
+ * @param {Policy} policy - A user-supplied policy candidate; may be malformed.
  * @returns {string[] | undefined} The normalised wallet binding, or undefined for "all wallets".
  */
-export function validatePolicy(policy: object): string[] | undefined;
+export function validatePolicy(policy: Policy): string[] | undefined;
 /**
  * Returns true if the given rule addresses the supplied operation.
  *
  * @internal
- * @param {object} rule
- * @param {string} operation
- * @returns {boolean}
+ * @param {PolicyRule} rule - The rule under evaluation.
+ * @param {string} operation - The operation name being checked (e.g. 'sendTransaction').
+ * @returns {boolean} True if the rule's operation field includes this operation (literal or via wildcard).
  */
-export function ruleAddressesOperation(rule: object, operation: string): boolean;
+export function ruleAddressesOperation(rule: PolicyRule, operation: string): boolean;
 /**
  * Returns the union of operation names referenced by the given policies.
  * If any rule uses the wildcard, the result includes the full operation set.
  *
  * @internal
- * @param {Iterable<object>} policies
- * @returns {Set<string>}
+ * @param {Iterable<Policy>} policies - The policies whose rules should be scanned.
+ * @returns {Set<string>} Operation names that need wrapping for this account.
  */
-export function collectReferencedOperations(policies: Iterable<object>): Set<string>;
+export function collectReferencedOperations(policies: Iterable<Policy>): Set<string>;
 export { normalisePolicyWallet };
+export type Policy = import("./policy-engine.js").Policy;
+export type PolicyRule = import("./policy-engine.js").PolicyRule;
 export type RegisterPolicyOptions = import("./policy-engine.js").RegisterPolicyOptions;
 import { normalisePolicyWallet } from './policy-schemas.js';
