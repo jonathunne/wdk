@@ -16,7 +16,7 @@
 
 import WalletManager from '@tetherto/wdk-wallet'
 
-import { SwapProtocol, BridgeProtocol, LendingProtocol, FiatProtocol } from '@tetherto/wdk-wallet/protocols'
+import { SwapProtocol, BridgeProtocol, LendingProtocol, FiatProtocol, SwidgeProtocol } from '@tetherto/wdk-wallet/protocols'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -45,7 +45,7 @@ export default class WDK {
     this._wallets = new Map()
 
     /** @private */
-    this._protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null) }
+    this._protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null), swidge: Object.create(null) }
 
     /** @private */
     this._middlewares = Object.create(null)
@@ -107,7 +107,7 @@ export default class WDK {
    * same type bound to the same blockchain with the same label).
    *
    * @see {@link IWalletAccountWithProtocols#registerProtocol} to register protocols only for specific accounts.
-   * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol} P
+   * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol | typeof SwidgeProtocol} P
    * @param {string} blockchain - The name of the blockchain the protocol must be bound to. Can be any string (e.g., "ethereum").
    * @param {string} label - The label.
    * @param {P} Protocol - The protocol class.
@@ -115,7 +115,11 @@ export default class WDK {
    * @returns {WDK} The wdk instance.
    */
   registerProtocol (blockchain, label, Protocol, config) {
-    if (Protocol.prototype instanceof SwapProtocol) {
+    if (Protocol.prototype instanceof SwidgeProtocol) {
+      this._protocols.swidge[blockchain] ??= Object.create(null)
+
+      this._protocols.swidge[blockchain][label] = { Protocol, config }
+    } else if (Protocol.prototype instanceof SwapProtocol) {
       this._protocols.swap[blockchain] ??= Object.create(null)
 
       this._protocols.swap[blockchain][label] = { Protocol, config }
@@ -247,12 +251,14 @@ export default class WDK {
   _registerProtocols (account, { blockchain }) {
     if (this._decoratedAccounts.has(account)) return
 
-    const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null) }
+    const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null), swidge: Object.create(null) }
 
     this._decoratedAccounts.add(account)
 
     account.registerProtocol = (label, Protocol, config) => {
-      if (Protocol.prototype instanceof SwapProtocol) {
+      if (Protocol.prototype instanceof SwidgeProtocol) {
+        protocols.swidge[label] = new Protocol(account, config)
+      } else if (Protocol.prototype instanceof SwapProtocol) {
         protocols.swap[label] = new Protocol(account, config)
       } else if (Protocol.prototype instanceof BridgeProtocol) {
         protocols.bridge[label] = new Protocol(account, config)
@@ -327,6 +333,22 @@ export default class WDK {
       }
 
       throw new Error(`No fiat protocol registered for label: ${label}.`)
+    }
+
+    account.getSwidgeProtocol = (label) => {
+      if (this._protocols.swidge[blockchain]?.[label]) {
+        const { Protocol, config } = this._protocols.swidge[blockchain][label]
+
+        const protocol = new Protocol(account, config)
+
+        return protocol
+      }
+
+      if (protocols.swidge[label]) {
+        return protocols.swidge[label]
+      }
+
+      throw new Error(`No swidge protocol registered for label: ${label}.`)
     }
   }
 }
