@@ -63,6 +63,7 @@ const PROTOCOL_GETTERS = [
  * @param {number | undefined} options.index - Index passed to `wdk.getAccount(wallet, index)`, when known.
  * @param {PolicyEngine} options.engine - The PolicyEngine instance the proxy delegates evaluation to.
  * @returns {Promise<IWalletAccount>} The proxy-wrapped account, or the original if no policy applies.
+ * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
  */
 export async function createPolicyEnforcedAccount (account, { blockchain, path, index, engine }) {
   const relevantOps = engine._relevantOperations(blockchain, path, index)

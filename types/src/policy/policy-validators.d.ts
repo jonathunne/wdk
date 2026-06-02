@@ -3,6 +3,7 @@
  *
  * @internal
  * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`.
+ * @throws {PolicyConfigurationError} If `options` is not a plain object or any field fails schema validation.
  */
 export function validateRegisterOptions(options?: RegisterPolicyOptions): void;
 /**
@@ -12,6 +13,7 @@ export function validateRegisterOptions(options?: RegisterPolicyOptions): void;
  * @internal
  * @param {Policy} policy - A user-supplied policy candidate; may be malformed.
  * @returns {string[] | undefined} The normalised wallet binding, or undefined for "all wallets".
+ * @throws {PolicyConfigurationError} If the policy does not match the schema or violates a cross-field rule (account-scope requirements, override constraint).
  */
 export function validatePolicy(policy: Policy): string[] | undefined;
 /**

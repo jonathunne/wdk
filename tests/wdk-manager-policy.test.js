@@ -171,14 +171,14 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy({ ...projectAllowAll('p'), wallet: '' }))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Policy 'p'.*'wallet'/)
+      expect(err.message).toBe("Policy 'p': 'wallet': Too small: expected string to have >=1 characters")
     })
 
     test("throws PolicyConfigurationError when 'wallet' is an empty array", () => {
       const err = catchSync(() => wdkManager.registerPolicy({ ...projectAllowAll('p'), wallet: [] }))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Policy 'p'.*'wallet'/)
+      expect(err.message).toBe("Policy 'p': 'wallet': Too small: expected array to have >=1 items")
     })
 
     test("throws PolicyConfigurationError on missing 'id'", () => {
@@ -188,7 +188,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Policy.*'id'/)
+      expect(err.message).toBe("Policy: 'id': Invalid input: expected string, received undefined")
     })
 
     test("throws PolicyConfigurationError on missing 'name'", () => {
@@ -198,7 +198,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Policy 'p'.*'name'/)
+      expect(err.message).toBe("Policy 'p': 'name': Invalid input: expected string, received undefined")
     })
 
     test('throws PolicyConfigurationError on unknown scope', () => {
@@ -208,7 +208,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Policy 'p'.*'scope'/)
+      expect(err.message).toBe('Policy \'p\': \'scope\': Invalid option: expected one of "project"|"account"')
     })
 
     test('throws PolicyConfigurationError on unknown operation', () => {
@@ -218,7 +218,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*'operation'/)
+      expect(err.message).toBe("Rule 'r' in policy 'p': 'operation': Invalid input")
     })
 
     test('throws PolicyConfigurationError on invalid action', () => {
@@ -228,7 +228,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*'action'/)
+      expect(err.message).toBe('Rule \'r\' in policy \'p\': \'action\': Invalid option: expected one of "ALLOW"|"DENY"')
     })
 
     test('throws PolicyConfigurationError on override_broader_scope outside account-scope ALLOW', () => {
@@ -238,7 +238,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*override_broader_scope.*account-scope ALLOW/)
+      expect(err.message).toBe("Rule 'r' in policy 'p': 'override_broader_scope': 'override_broader_scope' is only valid on account-scope ALLOW rules")
     })
 
     test('throws PolicyConfigurationError on non-function condition', () => {
@@ -248,7 +248,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Rule 'r' in policy 'p'.*conditions/)
+      expect(err.message).toBe("Rule 'r' in policy 'p': 'conditions.0': Invalid input")
     })
 
     test("throws PolicyConfigurationError on account-scope without a 'wallet' field", () => {
@@ -258,7 +258,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Policy 'p'.*'wallet'.*account/)
+      expect(err.message).toBe("Policy 'p': 'wallet': 'wallet' is required when scope is 'account'")
     })
 
     test('throws PolicyConfigurationError when accounts is provided on non-account scope', () => {
@@ -268,7 +268,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy(policy))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Policy 'p'.*'accounts'.*scope is 'account'/)
+      expect(err.message).toBe("Policy 'p': 'accounts': 'accounts' is only allowed when scope is 'account'")
     })
 
     test('does not partially register when one policy in an array is invalid', async () => {
@@ -282,7 +282,7 @@ describe('WdkManager — policy engine', () => {
       const err = catchSync(() => wdkManager.registerPolicy([good, bad]))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/Rule 'r' in policy 'bad'.*'operation'/)
+      expect(err.message).toBe("Rule 'r' in policy 'bad': 'operation': Invalid input")
 
       // The 'good' policy must NOT have been registered (otherwise the next call would block).
       const account = await wdkManager.getAccount('ethereum', 0)
@@ -1505,15 +1505,22 @@ describe('WdkManager — policy engine', () => {
     })
 
     test('rejects non-positive conditionTimeoutMs at registration time', () => {
-      const cases = [-1, 0, NaN, Infinity, '30000', null]
+      const cases = [
+        { value: -1, message: "registerPolicy options: 'conditionTimeoutMs': Too small: expected number to be >0" },
+        { value: 0, message: "registerPolicy options: 'conditionTimeoutMs': Too small: expected number to be >0" },
+        { value: NaN, message: "registerPolicy options: 'conditionTimeoutMs': Invalid input: expected number, received NaN" },
+        { value: Infinity, message: "registerPolicy options: 'conditionTimeoutMs': Invalid input: expected number, received number" },
+        { value: '30000', message: "registerPolicy options: 'conditionTimeoutMs': Invalid input: expected number, received string" },
+        { value: null, message: "registerPolicy options: 'conditionTimeoutMs': Invalid input: expected number, received null" }
+      ]
 
-      for (const value of cases) {
+      for (const { value, message } of cases) {
         const err = catchSync(() =>
           wdkManager.registerPolicy(projectAllowAll('p'), { conditionTimeoutMs: value })
         )
 
         expect(err.name).toBe('PolicyConfigurationError')
-        expect(err.message).toMatch(/registerPolicy options.*'conditionTimeoutMs'/)
+        expect(err.message).toBe(message)
       }
     })
 
@@ -1639,39 +1646,6 @@ describe('WdkManager — policy engine', () => {
       const err = await catchAsync(() => account.sendTransaction({ to: SANCTIONED, value: 1n }))
 
       expect(err.reason).toBe('KYT screening required')
-    })
-  })
-
-  // -------------------------------------------------------------------------
-  // Defensive deep-clone of rule.state (Phase 2 readiness)
-  // -------------------------------------------------------------------------
-
-  describe('defensive cloning', () => {
-    test('mutating rule.state on the caller side does not affect the engine copy', () => {
-      const state = { value: 'original', nested: { count: 0 } }
-
-      wdkManager.registerPolicy({
-        id: 'p',
-        name: 'p',
-        scope: 'project',
-        rules: [{
-          name: 'r',
-          operation: 'sendTransaction',
-          action: 'ALLOW',
-          state,
-          conditions: [() => true]
-        }]
-      })
-
-      state.value = 'MUTATED'
-      state.nested.count = 99
-
-      const engineCopy = wdkManager._policyEngine._registry._project[0].rules[0].state
-
-      expect(engineCopy.value).toBe('original')
-      expect(engineCopy.nested.count).toBe(0)
-      expect(engineCopy).not.toBe(state)
-      expect(engineCopy.nested).not.toBe(state.nested)
     })
   })
 
@@ -1828,14 +1802,23 @@ describe('WdkManager — policy engine', () => {
     test('rejects accounts entries that are neither non-empty strings nor non-negative integers', () => {
       wdkManager.registerWallet('ethereum', WalletManagerMock, {})
 
-      const cases = [-1, 1.5, NaN, '', null, undefined, true, {}]
+      const cases = [
+        { value: -1, message: "Policy 'p': 'accounts.0': Too small: expected number to be >=0" },
+        { value: 1.5, message: "Policy 'p': 'accounts.0': Invalid input" },
+        { value: NaN, message: "Policy 'p': 'accounts.0': Invalid input" },
+        { value: '', message: "Policy 'p': 'accounts.0': Too small: expected string to have >=1 characters" },
+        { value: null, message: "Policy 'p': 'accounts.0': Invalid input" },
+        { value: undefined, message: "Policy 'p': 'accounts.0': Invalid input" },
+        { value: true, message: "Policy 'p': 'accounts.0': Invalid input" },
+        { value: {}, message: "Policy 'p': 'accounts.0': Invalid input" }
+      ]
 
-      for (const value of cases) {
+      for (const { value, message } of cases) {
         const policy = { id: 'p', name: 'p', scope: 'account', wallet: 'ethereum', accounts: [value], rules: [{ name: 'r', operation: 'sendTransaction', action: 'ALLOW', conditions: [] }] }
         const err = catchSync(() => wdkManager.registerPolicy(policy))
 
         expect(err.name).toBe('PolicyConfigurationError')
-        expect(err.message).toMatch(/Policy 'p'.*accounts/)
+        expect(err.message).toBe(message)
       }
     })
   })

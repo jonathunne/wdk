@@ -135,6 +135,7 @@ export default class PolicyEngine {
    *   set of registered wallet identifiers. When provided, the engine verifies
    *   every wallet binding referenced by the policies is in this set before
    *   touching the registry.
+   * @throws {PolicyConfigurationError} If any policy or option fails schema validation, the input is an empty array, or a policy binds to a wallet not present in `registrationContext.knownWallets`.
    */
   register (policies, options, registrationContext) {
     validateRegisterOptions(options)
@@ -181,6 +182,7 @@ export default class PolicyEngine {
    * @param {string | undefined} ctx.path - Derivation path of the account, when known.
    * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
    * @returns {Promise<IWalletAccount>} The enforced proxy, or the original account if no policy applies.
+   * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
    */
   async applyPoliciesTo (account, { blockchain, path, index }) {
     return createPolicyEnforcedAccount(account, { blockchain, path, index, engine: this })

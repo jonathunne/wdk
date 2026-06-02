@@ -33,6 +33,7 @@
  * @param {number | undefined} options.index - Index passed to `wdk.getAccount(wallet, index)`, when known.
  * @param {PolicyEngine} options.engine - The PolicyEngine instance the proxy delegates evaluation to.
  * @returns {Promise<IWalletAccount>} The proxy-wrapped account, or the original if no policy applies.
+ * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
  */
 export function createPolicyEnforcedAccount(account: IWalletAccount, { blockchain, path, index, engine }: {
     blockchain: string;

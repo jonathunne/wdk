@@ -95,6 +95,7 @@ export default class WDK {
      * @param {Policy | Policy[]} policies - A single policy or array of policies to register on this WDK instance.
      * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`. The most recent call's value wins.
      * @returns {WDK} The same WDK instance, for chaining.
+     * @throws {PolicyConfigurationError} If any policy or option fails validation, or a policy binds to a wallet identifier not previously passed to `registerWallet`.
      */
     registerPolicy(policies: Policy | Policy[], options?: RegisterPolicyOptions): WDK;
     /**
@@ -102,8 +103,9 @@ export default class WDK {
      *
      * @param {string} blockchain - The name of the blockchain (e.g., "ethereum").
      * @param {number} [index] - The index of the account to get (default: 0).
-     * @returns {Promise<IWalletAccountWithProtocols>} The account.
+     * @returns {Promise<IWalletAccountWithProtocols>} The account. When at least one registered policy targets this account, the returned object is a Proxy that throws `PolicyViolationError` from any wrapped write method whose policy evaluation yields a DENY.
      * @throws {Error} If no wallet has been registered for the given blockchain.
+     * @throws {PolicyConfigurationError} If a registered policy applies but the underlying wallet account does not implement `toReadOnlyAccount()`.
      */
     getAccount(blockchain: string, index?: number): Promise<IWalletAccountWithProtocols>;
     /**
@@ -111,8 +113,9 @@ export default class WDK {
      *
      * @param {string} blockchain - The name of the blockchain (e.g., "ethereum").
      * @param {string} path - The derivation path (e.g., "0'/0/0").
-     * @returns {Promise<IWalletAccountWithProtocols>} The account.
+     * @returns {Promise<IWalletAccountWithProtocols>} The account. When at least one registered policy targets this account, the returned object is a Proxy that throws `PolicyViolationError` from any wrapped write method whose policy evaluation yields a DENY.
      * @throws {Error} If no wallet has been registered for the given blockchain.
+     * @throws {PolicyConfigurationError} If a registered policy applies but the underlying wallet account does not implement `toReadOnlyAccount()`.
      */
     getAccountByPath(blockchain: string, path: string): Promise<IWalletAccountWithProtocols>;
     /**
