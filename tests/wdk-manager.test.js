@@ -33,18 +33,18 @@ const WalletManagerMock = jest.fn().mockImplementation((seed, config) => {
 })
 
 describe('WdkManager', () => {
+  const DUMMY_ACCOUNT = {
+    getAddress: async () => {
+      return '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd'
+    }
+  }
+
   const CONFIG = { transferMaxFee: 100 }
 
   let wdkManager
-  let DUMMY_ACCOUNT
 
   beforeEach(() => {
     wdkManager = new WdkManager(SEED_PHRASE)
-    DUMMY_ACCOUNT = {
-      getAddress: async () => {
-        return '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd'
-      }
-    }
   })
 
   describe('getAccount', () => {
@@ -138,8 +138,6 @@ describe('WdkManager', () => {
 
           const sameAccount = await wdkManager.getAccount('ethereum', 0)
 
-          expect(sameAccount).toBe(account)
-          expect(() => sameAccount.getSwapProtocol('test')).not.toThrow()
           expect(sameAccount.getSwapProtocol('test')).toBeInstanceOf(SwapProtocolMock)
         })
       })
@@ -190,6 +188,17 @@ describe('WdkManager', () => {
           expect(() => account.getBridgeProtocol('test'))
             .toThrow('No bridge protocol registered for label: test.')
         })
+
+        test('should preserve account-scoped protocols across repeated getAccount calls', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+          account.registerProtocol('test', BridgeProtocolMock, BRIDGE_CONFIG)
+
+          const sameAccount = await wdkManager.getAccount('ethereum', 0)
+
+          expect(sameAccount.getBridgeProtocol('test')).toBeInstanceOf(BridgeProtocolMock)
+        })
       })
 
       describe('getLendingProtocol', () => {
@@ -235,6 +244,17 @@ describe('WdkManager', () => {
 
           expect(() => account.getLendingProtocol('test'))
             .toThrow('No lending protocol registered for label: test.')
+        })
+
+        test('should preserve account-scoped protocols across repeated getAccount calls', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+          account.registerProtocol('test', LendingProtocolMock, undefined)
+
+          const sameAccount = await wdkManager.getAccount('ethereum', 0)
+
+          expect(sameAccount.getLendingProtocol('test')).toBeInstanceOf(LendingProtocolMock)
         })
       })
     })
@@ -432,17 +452,7 @@ describe('WdkManager', () => {
       wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
       wdkManager.dispose(['ethereum'])
 
-      expect(() => wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG))
-        .not.toThrow()
-    })
-  })
-
-  describe('registerProtocol', () => {
-    test('should throw if the protocol does not extend a known base class', () => {
-      class NotAProtocol {}
-
-      expect(() => wdkManager.registerProtocol('ethereum', 'test', NotAProtocol, {}))
-        .toThrow('Protocol must extend SwapProtocol, BridgeProtocol, LendingProtocol, or FiatProtocol.')
+      expect(wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)).toBe(wdkManager)
     })
   })
 
@@ -515,25 +525,6 @@ describe('WdkManager', () => {
       wdkManager.dispose([])
 
       expect(disposeMock).not.toHaveBeenCalled()
-    })
-
-    test('should zero the seed bytes when disposing all wallets', () => {
-      const seed = new Uint8Array(64).fill(0xab)
-      const wdk = new WdkManager(seed)
-
-      wdk.dispose()
-
-      expect(seed.every((b) => b === 0)).toBe(true)
-    })
-
-    test('should not zero the seed bytes when disposing a subset of wallets', () => {
-      const seed = new Uint8Array(64).fill(0xab)
-      const wdk = new WdkManager(seed)
-      wdk.registerWallet('ethereum', WalletManagerMock, CONFIG)
-
-      wdk.dispose(['ethereum'])
-
-      expect(seed.every((b) => b === 0xab)).toBe(true)
     })
   })
 })

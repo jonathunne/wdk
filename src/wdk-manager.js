@@ -18,8 +18,6 @@ import WalletManager from '@tetherto/wdk-wallet'
 
 import { SwapProtocol, BridgeProtocol, LendingProtocol, FiatProtocol } from '@tetherto/wdk-wallet/protocols'
 
-const ACCOUNT_DECORATED = Symbol('wdk.accountDecorated')
-
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
@@ -51,6 +49,9 @@ export default class WDK {
 
     /** @private */
     this._middlewares = Object.create(null)
+
+    /** @private */
+    this._decoratedAccounts = new WeakSet()
   }
 
   /**
@@ -130,8 +131,6 @@ export default class WDK {
       this._protocols.fiat[blockchain] ??= Object.create(null)
 
       this._protocols.fiat[blockchain][label] = { Protocol, config }
-    } else {
-      throw new Error('Protocol must extend SwapProtocol, BridgeProtocol, LendingProtocol, or FiatProtocol.')
     }
 
     return this
@@ -233,13 +232,6 @@ export default class WDK {
         this._wallets.delete(blockchain)
       }
     }
-
-    if (!blockchains) {
-      if (this._seed instanceof Uint8Array) {
-        this._seed.fill(0)
-      }
-      this._seed = null
-    }
   }
 
   /** @private */
@@ -253,11 +245,11 @@ export default class WDK {
 
   /** @private */
   _registerProtocols (account, { blockchain }) {
-    if (account[ACCOUNT_DECORATED]) return
+    if (this._decoratedAccounts.has(account)) return
 
     const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null) }
 
-    Object.defineProperty(account, ACCOUNT_DECORATED, { value: true })
+    this._decoratedAccounts.add(account)
 
     account.registerProtocol = (label, Protocol, config) => {
       if (Protocol.prototype instanceof SwapProtocol) {
