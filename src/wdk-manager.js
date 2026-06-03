@@ -49,6 +49,9 @@ export default class WDK {
 
     /** @private */
     this._middlewares = Object.create(null)
+
+    /** @private */
+    this._decoratedAccounts = new WeakSet()
   }
 
   /**
@@ -83,8 +86,13 @@ export default class WDK {
    * @param {W} WalletManager - The wallet manager class.
    * @param {ConstructorParameters<W>[1]} config - The configuration object.
    * @returns {WDK} The wdk instance.
+   * @throws {Error} If a wallet is already registered for the given blockchain.
    */
   registerWallet (blockchain, WalletManager, config) {
+    if (this._wallets.has(blockchain)) {
+      throw new Error(`A wallet is already registered for blockchain: ${blockchain}. Call dispose([${JSON.stringify(blockchain)}]) before re-registering.`)
+    }
+
     const wallet = new WalletManager(this._seed, config)
 
     this._wallets.set(blockchain, wallet)
@@ -241,7 +249,11 @@ export default class WDK {
 
   /** @private */
   _registerProtocols (account, { blockchain }) {
+    if (this._decoratedAccounts.has(account)) return
+
     const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null), swidge: Object.create(null) }
+
+    this._decoratedAccounts.add(account)
 
     account.registerProtocol = (label, Protocol, config) => {
       if (Protocol.prototype instanceof SwidgeProtocol) {
