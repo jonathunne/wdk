@@ -55,7 +55,7 @@ wdk.dispose()
 - **Wallet Registration**: Register multiple blockchain wallet managers through one WDK instance
 - **Unified Account Access**: Retrieve accounts by chain, index, or derivation path through a consistent API
 - **Multi-Chain Operations**: Coordinate balances, fee lookups, and transaction flows across registered chains
-- **Protocol Registration Support**: Attach swap, bridge, lending, and fiat protocols to registered blockchains
+- **Protocol Registration Support**: Attach swap, bridge, lending, fiat, and swidge protocols to registered blockchains
 - **Middleware Hooks**: Intercept account derivation with custom middleware
 - **Transaction Policies**: Local policy engine that intercepts write-facing operations and enforces user-defined ALLOW/DENY rules at project (global or wallet-bound) and account scopes — with simulation, nested-call handling, and structured `PolicyViolationError`s
 - **Seed Utilities**: Generate and validate BIP-39 seed phrases

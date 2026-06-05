@@ -24,6 +24,8 @@ import { IWalletAccount, NotImplementedError } from '@tetherto/wdk-wallet'
 
 /** @typedef {import('@tetherto/wdk-wallet/protocols').IFiatProtocol} IFiatProtocol */
 
+/** @typedef {import('@tetherto/wdk-wallet/protocols').ISwidgeProtocol} ISwidgeProtocol */
+
 /** @interface */
 export class IWalletAccountWithProtocols extends IWalletAccount {
   /**
@@ -32,7 +34,7 @@ export class IWalletAccountWithProtocols extends IWalletAccount {
    * The label must be unique in the scope of the account and the type of protocol (i.e., there can’t be two protocols of the same
    * type bound to the same account with the same label).
    *
-   * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol} P
+   * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol | typeof SwidgeProtocol} P
    * @param {string} label - The label.
    * @param {P} Protocol - The protocol class.
    * @param {ConstructorParameters<P>[1]} config - The protocol configuration.
@@ -84,5 +86,16 @@ export class IWalletAccountWithProtocols extends IWalletAccount {
    */
   getFiatProtocol (label) {
     throw new NotImplementedError('getFiatProtocol(label)')
+  }
+
+  /**
+   * Returns the swidge protocol with the given label.
+   *
+   * @param {string} label - The label.
+   * @returns {ISwidgeProtocol} The swidge protocol.
+   * @throws {Error} If no swidge protocol has been registered on this account with the given label.
+   */
+  getSwidgeProtocol (label) {
+    throw new NotImplementedError('getSwidgeProtocol(label)')
   }
 }

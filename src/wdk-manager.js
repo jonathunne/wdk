@@ -16,7 +16,7 @@
 
 import WalletManager from '@tetherto/wdk-wallet'
 
-import { SwapProtocol, BridgeProtocol, LendingProtocol, FiatProtocol } from '@tetherto/wdk-wallet/protocols'
+import { SwapProtocol, BridgeProtocol, LendingProtocol, FiatProtocol, SwidgeProtocol } from '@tetherto/wdk-wallet/protocols'
 
 import PolicyEngine from './policy/policy-engine.js'
 
@@ -65,13 +65,16 @@ export default class WDK {
     this._wallets = new Map()
 
     /** @private */
-    this._protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null) }
+    this._protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null), swidge: Object.create(null) }
 
     /** @private */
     this._middlewares = Object.create(null)
 
     /** @private */
     this._policyEngine = new PolicyEngine()
+
+    /** @private */
+    this._decoratedAccounts = new WeakSet()
   }
 
   /**
@@ -106,8 +109,13 @@ export default class WDK {
    * @param {W} WalletManager - The wallet manager class.
    * @param {ConstructorParameters<W>[1]} config - The configuration object.
    * @returns {WDK} The wdk instance.
+   * @throws {Error} If a wallet is already registered for the given blockchain.
    */
   registerWallet (blockchain, WalletManager, config) {
+    if (this._wallets.has(blockchain)) {
+      throw new Error(`A wallet is already registered for blockchain: ${blockchain}. Call dispose([${JSON.stringify(blockchain)}]) before re-registering.`)
+    }
+
     const wallet = new WalletManager(this._seed, config)
 
     this._wallets.set(blockchain, wallet)
@@ -122,7 +130,7 @@ export default class WDK {
    * same type bound to the same blockchain with the same label).
    *
    * @see {@link IWalletAccountWithProtocols#registerProtocol} to register protocols only for specific accounts.
-   * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol} P
+   * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol | typeof SwidgeProtocol} P
    * @param {string} blockchain - The name of the blockchain the protocol must be bound to. Can be any string (e.g., "ethereum").
    * @param {string} label - The label.
    * @param {P} Protocol - The protocol class.
@@ -130,7 +138,11 @@ export default class WDK {
    * @returns {WDK} The wdk instance.
    */
   registerProtocol (blockchain, label, Protocol, config) {
-    if (Protocol.prototype instanceof SwapProtocol) {
+    if (Protocol.prototype instanceof SwidgeProtocol) {
+      this._protocols.swidge[blockchain] ??= Object.create(null)
+
+      this._protocols.swidge[blockchain][label] = { Protocol, config }
+    } else if (Protocol.prototype instanceof SwapProtocol) {
       this._protocols.swap[blockchain] ??= Object.create(null)
 
       this._protocols.swap[blockchain][label] = { Protocol, config }
@@ -299,10 +311,16 @@ export default class WDK {
 
   /** @private */
   _registerProtocols (account, { blockchain }) {
-    const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null) }
+    if (this._decoratedAccounts.has(account)) return
+
+    const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null), swidge: Object.create(null) }
+
+    this._decoratedAccounts.add(account)
 
     account.registerProtocol = (label, Protocol, config) => {
-      if (Protocol.prototype instanceof SwapProtocol) {
+      if (Protocol.prototype instanceof SwidgeProtocol) {
+        protocols.swidge[label] = new Protocol(account, config)
+      } else if (Protocol.prototype instanceof SwapProtocol) {
         protocols.swap[label] = new Protocol(account, config)
       } else if (Protocol.prototype instanceof BridgeProtocol) {
         protocols.bridge[label] = new Protocol(account, config)
@@ -377,6 +395,22 @@ export default class WDK {
       }
 
       throw new Error(`No fiat protocol registered for label: ${label}.`)
+    }
+
+    account.getSwidgeProtocol = (label) => {
+      if (this._protocols.swidge[blockchain]?.[label]) {
+        const { Protocol, config } = this._protocols.swidge[blockchain][label]
+
+        const protocol = new Protocol(account, config)
+
+        return protocol
+      }
+
+      if (protocols.swidge[label]) {
+        return protocols.swidge[label]
+      }
+
+      throw new Error(`No swidge protocol registered for label: ${label}.`)
     }
   }
 }

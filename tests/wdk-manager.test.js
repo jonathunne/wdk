@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 import WalletManager from '@tetherto/wdk-wallet'
 
-import { BridgeProtocol, LendingProtocol, SwapProtocol } from '@tetherto/wdk-wallet/protocols'
+import { BridgeProtocol, LendingProtocol, SwapProtocol, SwidgeProtocol } from '@tetherto/wdk-wallet/protocols'
 
 import WdkManager from '../index.js'
 
@@ -129,6 +129,17 @@ describe('WdkManager', () => {
           expect(() => account.getSwapProtocol('test'))
             .toThrow('No swap protocol registered for label: test.')
         })
+
+        test('should preserve account-scoped protocols across repeated getAccount calls', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+          account.registerProtocol('test', SwapProtocolMock, SWAP_CONFIG)
+
+          const sameAccount = await wdkManager.getAccount('ethereum', 0)
+
+          expect(sameAccount.getSwapProtocol('test')).toBeInstanceOf(SwapProtocolMock)
+        })
       })
 
       describe('getBridgeProtocol', () => {
@@ -177,6 +188,17 @@ describe('WdkManager', () => {
           expect(() => account.getBridgeProtocol('test'))
             .toThrow('No bridge protocol registered for label: test.')
         })
+
+        test('should preserve account-scoped protocols across repeated getAccount calls', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+          account.registerProtocol('test', BridgeProtocolMock, BRIDGE_CONFIG)
+
+          const sameAccount = await wdkManager.getAccount('ethereum', 0)
+
+          expect(sameAccount.getBridgeProtocol('test')).toBeInstanceOf(BridgeProtocolMock)
+        })
       })
 
       describe('getLendingProtocol', () => {
@@ -222,6 +244,76 @@ describe('WdkManager', () => {
 
           expect(() => account.getLendingProtocol('test'))
             .toThrow('No lending protocol registered for label: test.')
+        })
+
+        test('should preserve account-scoped protocols across repeated getAccount calls', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+          account.registerProtocol('test', LendingProtocolMock, undefined)
+
+          const sameAccount = await wdkManager.getAccount('ethereum', 0)
+
+          expect(sameAccount.getLendingProtocol('test')).toBeInstanceOf(LendingProtocolMock)
+        })
+      })
+
+      describe('getSwidgeProtocol', () => {
+        const SWIDGE_CONFIG = { maxNetworkFeeBps: 100 }
+
+        let SwidgeProtocolMock
+
+        beforeEach(() => {
+          SwidgeProtocolMock = jest.fn()
+
+          Object.setPrototypeOf(SwidgeProtocolMock.prototype, SwidgeProtocol.prototype)
+        })
+
+        test("should return the swidge protocol registered for the account's blockchain and the given label", async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+                    .registerProtocol('ethereum', 'test', SwidgeProtocolMock, SWIDGE_CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+
+          const protocol = account.getSwidgeProtocol('test')
+
+          expect(SwidgeProtocolMock).toHaveBeenCalledWith(account, SWIDGE_CONFIG)
+
+          expect(protocol).toBeInstanceOf(SwidgeProtocolMock)
+        })
+
+        test('should return the swidge protocol registered for the account and the given label', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+
+          account.registerProtocol('test', SwidgeProtocolMock, SWIDGE_CONFIG)
+
+          const protocol = account.getSwidgeProtocol('test')
+
+          expect(SwidgeProtocolMock).toHaveBeenCalledWith(account, SWIDGE_CONFIG)
+
+          expect(protocol).toBeInstanceOf(SwidgeProtocolMock)
+        })
+
+        test('should throw if no swidge protocol has been registered for the given label', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+
+          expect(() => account.getSwidgeProtocol('test'))
+            .toThrow('No swidge protocol registered for label: test.')
+        })
+
+        test('should preserve account-scoped protocols across repeated getAccount calls', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccount('ethereum', 0)
+          account.registerProtocol('test', SwidgeProtocolMock, SWIDGE_CONFIG)
+
+          const sameAccount = await wdkManager.getAccount('ethereum', 0)
+
+          expect(sameAccount.getSwidgeProtocol('test')).toBeInstanceOf(SwidgeProtocolMock)
         })
       })
     })
@@ -404,6 +496,70 @@ describe('WdkManager', () => {
             .toThrow('No lending protocol registered for label: test.')
         })
       })
+
+      describe('getSwidgeProtocol', () => {
+        const SWIDGE_CONFIG = { maxNetworkFeeBps: 100 }
+
+        let SwidgeProtocolMock
+
+        beforeEach(() => {
+          SwidgeProtocolMock = jest.fn()
+
+          Object.setPrototypeOf(SwidgeProtocolMock.prototype, SwidgeProtocol.prototype)
+        })
+
+        test("should return the swidge protocol registered for the account's blockchain and the given label", async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+                    .registerProtocol('ethereum', 'test', SwidgeProtocolMock, SWIDGE_CONFIG)
+
+          const account = await wdkManager.getAccountByPath('ethereum', "0'/0/0")
+
+          const protocol = account.getSwidgeProtocol('test')
+
+          expect(SwidgeProtocolMock).toHaveBeenCalledWith(account, SWIDGE_CONFIG)
+
+          expect(protocol).toBeInstanceOf(SwidgeProtocolMock)
+        })
+
+        test('should return the swidge protocol registered for the account and the given label', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccountByPath('ethereum', "0'/0/0")
+
+          account.registerProtocol('test', SwidgeProtocolMock, SWIDGE_CONFIG)
+
+          const protocol = account.getSwidgeProtocol('test')
+
+          expect(SwidgeProtocolMock).toHaveBeenCalledWith(account, SWIDGE_CONFIG)
+
+          expect(protocol).toBeInstanceOf(SwidgeProtocolMock)
+        })
+
+        test('should throw if no swidge protocol has been registered for the given label', async () => {
+          wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+          const account = await wdkManager.getAccountByPath('ethereum', "0'/0/0")
+
+          expect(() => account.getSwidgeProtocol('test'))
+            .toThrow('No swidge protocol registered for label: test.')
+        })
+      })
+    })
+  })
+
+  describe('registerWallet', () => {
+    test('should throw if a wallet is already registered for the given blockchain', () => {
+      wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+
+      expect(() => wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG))
+        .toThrow('A wallet is already registered for blockchain: ethereum. Call dispose(["ethereum"]) before re-registering.')
+    })
+
+    test('should allow re-registering after dispose', () => {
+      wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)
+      wdkManager.dispose(['ethereum'])
+
+      expect(wdkManager.registerWallet('ethereum', WalletManagerMock, CONFIG)).toBe(wdkManager)
     })
   })
 

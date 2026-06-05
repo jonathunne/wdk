@@ -1,6 +1,6 @@
 {
   "name": "@tetherto/wdk",
-  "version": "1.0.0-beta.9",
+  "version": "1.0.0-beta.10",
   "description": "A flexible manager that can register and manage multiple wallet instances for different blockchains dynamically.",
   "keywords": [
     "wdk",
@@ -23,13 +23,13 @@
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
   "dependencies": {
-    "@tetherto/wdk-wallet": "^1.0.0-beta.7",
-    "bare-node-runtime": "^1.1.4",
+    "@tetherto/wdk-wallet": "^1.0.0-beta.9",
+    "bare-node-runtime": "^1.4.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "cross-env": "7.0.3",
-    "jest": "30.1.3",
+    "jest": "30.4.2",
     "standard": "17.1.2",
     "typescript": "5.8.3"
   },

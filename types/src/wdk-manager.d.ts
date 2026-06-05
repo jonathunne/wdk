@@ -43,6 +43,8 @@ export default class WDK {
     private _middlewares;
     /** @private */
     private _policyEngine;
+    /** @private */
+    private _decoratedAccounts;
     /**
      * Registers a new wallet to WDK.
      *
@@ -51,6 +53,7 @@ export default class WDK {
      * @param {W} WalletManager - The wallet manager class.
      * @param {ConstructorParameters<W>[1]} config - The configuration object.
      * @returns {WDK} The wdk instance.
+     * @throws {Error} If a wallet is already registered for the given blockchain.
      */
     registerWallet<W extends typeof import("@tetherto/wdk-wallet").default>(blockchain: string, WalletManager: W, config: ConstructorParameters<W>[1]): WDK;
     /**
@@ -60,14 +63,14 @@ export default class WDK {
      * same type bound to the same blockchain with the same label).
      *
      * @see {@link IWalletAccountWithProtocols#registerProtocol} to register protocols only for specific accounts.
-     * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol} P
+     * @template {typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol | typeof SwidgeProtocol} P
      * @param {string} blockchain - The name of the blockchain the protocol must be bound to. Can be any string (e.g., "ethereum").
      * @param {string} label - The label.
      * @param {P} Protocol - The protocol class.
      * @param {ConstructorParameters<P>[1]} config - The protocol configuration.
      * @returns {WDK} The wdk instance.
      */
-    registerProtocol<P extends typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol>(blockchain: string, label: string, Protocol: P, config: ConstructorParameters<P>[1]): WDK;
+    registerProtocol<P extends typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol | typeof SwidgeProtocol>(blockchain: string, label: string, Protocol: P, config: ConstructorParameters<P>[1]): WDK;
     /**
      * Registers a new middleware to WDK.
      *
@@ -156,3 +159,4 @@ import { SwapProtocol } from '@tetherto/wdk-wallet/protocols';
 import { BridgeProtocol } from '@tetherto/wdk-wallet/protocols';
 import { LendingProtocol } from '@tetherto/wdk-wallet/protocols';
 import { FiatProtocol } from '@tetherto/wdk-wallet/protocols';
+import { SwidgeProtocol } from '@tetherto/wdk-wallet/protocols';
