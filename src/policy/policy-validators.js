@@ -97,13 +97,15 @@ export function collectReferencedOperations (policies) {
 
   for (const policy of policies) {
     for (const rule of policy.rules) {
-      if (rule.operation === WILDCARD || rule.operation.includes?.(WILDCARD)) {
+      if (rule.operation === WILDCARD || rule.operation.includes(WILDCARD)) {
         return new Set(OPERATIONS)
       }
 
-      Array.isArray(rule.operation)
-        ? rule.operation.forEach((op) => operations.add(op))
-        : operations.add(rule.operation)
+      if (Array.isArray(rule.operation)) {
+        for (const op of rule.operation) operations.add(op)
+      } else {
+        operations.add(rule.operation)
+      }
     }
   }
 

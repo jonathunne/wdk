@@ -18,6 +18,7 @@ const DUMMY_BALANCE = 1000n
 const DUMMY_QUOTE = { fee: 1n }
 const DUMMY_SWAP_RESULT = { hash: '0xswap-hash-dummy' }
 const DUMMY_BRIDGE_RESULT = { hash: '0xbridge-hash-dummy' }
+const DUMMY_SWIDGE_RESULT = { hash: '0xswidge-hash-dummy' }
 
 // Test inputs (no DUMMY_ prefix per CQ5).
 const PATH_DEFAULT = "0'/0/0"
@@ -1364,7 +1365,7 @@ describe('WdkManager — policy engine', () => {
     })
 
     test('a swidge protocol write method is wrapped and blocks on DENY', async () => {
-      const swidgeInstanceMock = jest.fn().mockResolvedValue({ hash: '0xswidge-hash-dummy' })
+      const swidgeInstanceMock = jest.fn().mockResolvedValue(DUMMY_SWIDGE_RESULT)
 
       class MySwidgeProtocol extends SwidgeProtocol {
         constructor () { super() }

@@ -55,7 +55,12 @@ function snapshot (value) {
 
   try {
     return structuredClone(value)
-  } catch {
-    return value
+  } catch (err) {
+    // structuredClone throws DOMException(name: 'DataCloneError') for values
+    // it can't serialize (functions, class instances with non-cloneable
+    // internals, etc.). Fall back to the raw value in that case; rethrow
+    // anything else so real bugs surface.
+    if (err.name === 'DataCloneError') return value
+    throw err
   }
 }
