@@ -28,18 +28,24 @@ import {
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccountReadOnly} IWalletAccountReadOnly */
 
 /**
+ * The verdict a matching rule produces: either permit the operation or block it.
+ *
  * @typedef {'ALLOW' | 'DENY'} PolicyAction
  */
 
 /**
+ * The scope a policy binds to: globally / per-wallet (`project`) or per-account (`account`).
+ *
  * @typedef {'project' | 'account'} PolicyScope
  */
 
 /**
+ * A wrapped operation name from the supported set, or `*` to match any wrapped operation.
+ *
  * @typedef {'sendTransaction' | 'transfer' | 'approve' | 'signMessage' | 'signHash'
  *   | 'signTypedData' | 'signAuthorization' | 'delegate' | 'revokeDelegation'
  *   | 'swap' | 'bridge' | 'supply' | 'withdraw' | 'borrow' | 'repay' | 'buy' | 'sell'
- *   | '*'} PolicyOperation
+ *   | 'swidge' | '*'} PolicyOperation
  */
 
 /**
@@ -52,6 +58,10 @@ import {
  */
 
 /**
+ * A user-supplied predicate that receives the call context and returns
+ * (or resolves to) a truthy/falsy verdict. Throwing or timing out is
+ * treated per the rule's fail mode (fail-closed for DENY, fail-open-as-no-match for ALLOW).
+ *
  * @typedef {(context: PolicyContext) => boolean | Promise<boolean>} PolicyCondition
  */
 
@@ -68,6 +78,10 @@ import {
  */
 
 /**
+ * Identifies an account targeted by an account-scope policy: either a derivation
+ * path (string, exact match against `account.path`) or a non-negative integer
+ * index (matched against the index passed to `wdk.getAccount(wallet, index)`).
+ *
  * @typedef {string | number} AccountIdentifier
  */
 
@@ -105,6 +119,8 @@ import {
  * @property {SimulationTraceEntry[]} trace - Per-rule evaluation outcomes in the order they were considered. Useful for debugging.
  */
 
+const DEFAULT_CONDITION_TIMEOUT_MS = 30_000
+
 /**
  * The orchestration façade. Owns the registry; exposes the two methods the
  * `WDK` class calls (`register`, `applyPoliciesTo`). Internal helpers
@@ -113,8 +129,6 @@ import {
  *
  * @internal
  */
-const DEFAULT_CONDITION_TIMEOUT_MS = 30_000
-
 export default class PolicyEngine {
   constructor () {
     /** @private */
@@ -189,10 +203,10 @@ export default class PolicyEngine {
   }
 
   /**
-   * Removes account-scope and chain-bound project policies registered under
+   * Removes account-scope and wallet-bound project policies registered under
    * the given wallet identifier.
    *
-   * @param {string} wallet
+   * @param {string} wallet - The wallet identifier to dispose.
    */
   disposeWallet (wallet) {
     this._registry.disposeWallet(wallet)

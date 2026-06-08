@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 import WalletManager from '@tetherto/wdk-wallet'
 
-import { BridgeProtocol, SwapProtocol } from '@tetherto/wdk-wallet/protocols'
+import { BridgeProtocol, SwapProtocol, SwidgeProtocol } from '@tetherto/wdk-wallet/protocols'
 
 import WdkManager, { PolicyConfigurationError, PolicyViolationError } from '../index.js'
 
@@ -1361,6 +1361,37 @@ describe('WdkManager — policy engine', () => {
       expect(result.hash).toBe(DUMMY_TX_HASH)
       expect(condition).toHaveBeenCalledTimes(1)
       expect(sendTransactionMock).toHaveBeenCalledTimes(1)
+    })
+
+    test('a swidge protocol write method is wrapped and blocks on DENY', async () => {
+      const swidgeInstanceMock = jest.fn().mockResolvedValue({ hash: '0xswidge-hash-dummy' })
+
+      class MySwidgeProtocol extends SwidgeProtocol {
+        constructor () { super() }
+        async swidge (opts) { return swidgeInstanceMock(opts) }
+      }
+
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdkManager
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerProtocol('ethereum', 'bridge-and-swap', MySwidgeProtocol, {})
+        .registerPolicy({
+          id: 'no-swidge',
+          name: 'no-swidge',
+          scope: 'project',
+          rules: [{ name: 'deny-swidge', operation: 'swidge', action: 'DENY', conditions: [] }]
+        })
+
+      const account = await wdkManager.getAccount('ethereum', 0)
+      const swidge = account.getSwidgeProtocol('bridge-and-swap')
+
+      const denied = await catchAsync(() => swidge.swidge({ fromToken: 'A', toToken: 'B', fromTokenAmount: 1n }))
+
+      expect(denied.name).toBe('PolicyViolationError')
+      expect(denied.policyId).toBe('no-swidge')
+      expect(denied.ruleName).toBe('deny-swidge')
+      expect(swidgeInstanceMock).not.toHaveBeenCalled()
     })
 
     test('account.registerProtocol(...) returns the proxy so chained calls stay enforced (C-2)', async () => {

@@ -31,7 +31,8 @@ export const OPERATIONS = [
   'borrow',
   'repay',
   'buy',
-  'sell'
+  'sell',
+  'swidge'
 ]
 
 export const WILDCARD = '*'
@@ -44,5 +45,6 @@ export const PROTOCOL_METHODS = {
   swap: ['swap'],
   bridge: ['bridge'],
   lending: ['supply', 'withdraw', 'borrow', 'repay'],
-  fiat: ['buy', 'sell']
+  fiat: ['buy', 'sell'],
+  swidge: ['swidge']
 }

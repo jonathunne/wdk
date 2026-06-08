@@ -7,4 +7,5 @@ export namespace PROTOCOL_METHODS {
     let bridge: string[];
     let lending: string[];
     let fiat: string[];
+    let swidge: string[];
 }

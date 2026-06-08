@@ -1,3 +1,11 @@
+/**
+ * The orchestration façade. Owns the registry; exposes the two methods the
+ * `WDK` class calls (`register`, `applyPoliciesTo`). Internal helpers
+ * (`_relevantOperations`, `_evaluateContext`, `_simulateContext`) are used
+ * by the wrapper module.
+ *
+ * @internal
+ */
 export default class PolicyEngine {
     /** @private */
     private _registry;
@@ -38,10 +46,10 @@ export default class PolicyEngine {
         index?: number | undefined;
     }): Promise<IWalletAccount>;
     /**
-     * Removes account-scope and chain-bound project policies registered under
+     * Removes account-scope and wallet-bound project policies registered under
      * the given wallet identifier.
      *
-     * @param {string} wallet
+     * @param {string} wallet - The wallet identifier to dispose.
      */
     disposeWallet(wallet: string): void;
     /**
@@ -57,9 +65,18 @@ export default class PolicyEngine {
 }
 export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
 export type IWalletAccountReadOnly = import("@tetherto/wdk-wallet").IWalletAccountReadOnly;
+/**
+ * The verdict a matching rule produces: either permit the operation or block it.
+ */
 export type PolicyAction = "ALLOW" | "DENY";
+/**
+ * The scope a policy binds to: globally / per-wallet (`project`) or per-account (`account`).
+ */
 export type PolicyScope = "project" | "account";
-export type PolicyOperation = "sendTransaction" | "transfer" | "approve" | "signMessage" | "signHash" | "signTypedData" | "signAuthorization" | "delegate" | "revokeDelegation" | "swap" | "bridge" | "supply" | "withdraw" | "borrow" | "repay" | "buy" | "sell" | "*";
+/**
+ * A wrapped operation name from the supported set, or `*` to match any wrapped operation.
+ */
+export type PolicyOperation = "sendTransaction" | "transfer" | "approve" | "signMessage" | "signHash" | "signTypedData" | "signAuthorization" | "delegate" | "revokeDelegation" | "swap" | "bridge" | "supply" | "withdraw" | "borrow" | "repay" | "buy" | "sell" | "swidge" | "*";
 export type PolicyContext = {
     /**
      * - The intercepted operation name.
@@ -82,6 +99,11 @@ export type PolicyContext = {
      */
     args: readonly unknown[];
 };
+/**
+ * A user-supplied predicate that receives the call context and returns
+ * (or resolves to) a truthy/falsy verdict. Throwing or timing out is
+ * treated per the rule's fail mode (fail-closed for DENY, fail-open-as-no-match for ALLOW).
+ */
 export type PolicyCondition = (context: PolicyContext) => boolean | Promise<boolean>;
 export type PolicyRule = {
     /**
@@ -117,6 +139,11 @@ export type PolicyRule = {
      */
     onSuccess?: (c: PolicyContext) => void | Promise<void>;
 };
+/**
+ * Identifies an account targeted by an account-scope policy: either a derivation
+ * path (string, exact match against `account.path`) or a non-negative integer
+ * index (matched against the index passed to `wdk.getAccount(wallet, index)`).
+ */
 export type AccountIdentifier = string | number;
 export type Policy = {
     /**
