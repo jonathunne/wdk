@@ -1,4 +1,4 @@
-export default class WdkManager {
+export default class WDK {
     /**
      * Returns a random BIP-39 seed phrase.
      *
@@ -35,9 +35,9 @@ export default class WdkManager {
      * @param {string} blockchain - The name of the blockchain the wallet must be bound to. Can be any string (e.g., "ethereum").
      * @param {W} WalletManager - The wallet manager class.
      * @param {ConstructorParameters<W>[1]} config - The configuration object.
-     * @returns {WdkManager} The wdk manager.
+     * @returns {WDK} The wdk manager.
      */
-    registerWallet<W extends typeof WalletManager>(blockchain: string, WalletManager: W, config: ConstructorParameters<W>[1]): WdkManager;
+    registerWallet<W extends typeof WalletManager>(blockchain: string, WalletManager: W, config: ConstructorParameters<W>[1]): WDK;
     /**
      * Registers a new protocol to the wdk manager.
      *
@@ -50,7 +50,7 @@ export default class WdkManager {
      * @param {string} label - The label.
      * @param {P} Protocol - The protocol class.
      * @param {ConstructorParameters<P>[1]} config - The protocol configuration.
-     * @returns {WdkManager} The wdk manager.
+     * @returns {WDK} The wdk manager.
      */
     registerProtocol<P extends typeof SwapProtocol | typeof BridgeProtocol | typeof LendingProtocol | typeof FiatProtocol | typeof SwidgeProtocol>(blockchain: string, label: string, Protocol: P, config: ConstructorParameters<P>[1]): WDK;
     /**
@@ -60,9 +60,9 @@ export default class WdkManager {
      *
      * @param {string} blockchain - The name of the blockchain the middleware must be bound to. Can be any string (e.g., "ethereum").
      * @param {MiddlewareFunction} middleware - A callback function that is called each time the user derives a new account.
-     * @returns {WdkManager} The wdk manager.
+     * @returns {WDK} The wdk manager.
      */
-    registerMiddleware(blockchain: string, middleware: MiddlewareFunction): WdkManager;
+    registerMiddleware(blockchain: string, middleware: MiddlewareFunction): WDK;
     /**
      * Returns the wallet account for a specific blockchain and index (see BIP-44).
      *
