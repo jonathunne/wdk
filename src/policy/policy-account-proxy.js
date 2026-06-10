@@ -32,7 +32,7 @@ const PROTOCOL_GETTERS = [
 /**
  * Returns a Proxy that exposes policy-enforced versions of write methods on
  * the given account. The policy engine itself does not mutate the account
- * (the WDK manager's `_registerProtocols` step does install
+ * (the WDK's `_registerProtocols` step does install
  * `registerProtocol` / `getXProtocol` helpers on the account before the
  * proxy is built — that's a separate, pre-existing concern).
  *
@@ -121,7 +121,7 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
       if (prop === 'simulate') return simulate
 
       // `account.registerProtocol(...)` returns the raw account by design
-      // (see `_registerProtocols` in wdk-manager.js). Without intercepting
+      // (see `_registerProtocols` in wdk.js). Without intercepting
       // here, `proxy.registerProtocol(...).sendTransaction(...)` would skip
       // enforcement entirely because the caller is no longer holding the
       // proxy. Rewrite the return value to the proxy itself.

@@ -1,7 +1,7 @@
 /**
  * Returns a Proxy that exposes policy-enforced versions of write methods on
  * the given account. The policy engine itself does not mutate the account
- * (the WDK manager's `_registerProtocols` step does install
+ * (the WDK's `_registerProtocols` step does install
  * `registerProtocol` / `getXProtocol` helpers on the account before the
  * proxy is built — that's a separate, pre-existing concern).
  *

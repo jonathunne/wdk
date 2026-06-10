@@ -190,9 +190,9 @@ export default class PolicyEngine {
    * exposes enforced versions of write methods. The original account is
    * never mutated. If no policy applies, returns the original account.
    *
-   * @param {IWalletAccount} account - The raw account from the wallet manager. Mutated only by the WDK manager's `_registerProtocols` step (which runs before this method), not by the policy engine.
+   * @param {IWalletAccount} account - The raw account from the wallet manager. Mutated only by the WDK's `_registerProtocols` step (which runs before this method), not by the policy engine.
    * @param {Object} ctx - The wrap context.
-   * @param {string} ctx.blockchain - The wallet identifier (named `blockchain` for parity with the WDK manager's existing API; treated as an opaque key here).
+   * @param {string} ctx.blockchain - The wallet identifier (named `blockchain` for parity with the WDK's existing API; treated as an opaque key here).
    * @param {string | undefined} ctx.path - Derivation path of the account, when known.
    * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
    * @returns {Promise<IWalletAccount>} The enforced proxy, or the original account if no policy applies.
