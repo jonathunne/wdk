@@ -14,10 +14,10 @@
 
 'use strict'
 
-/** @typedef {import('./src/wdk-manager.js').IWalletAccount} IWalletAccount */
-/** @typedef {import('./src/wdk-manager.js').FeeRates} FeeRates */
-/** @typedef {import('./src/wdk-manager.js').MiddlewareFunction} MiddlewareFunction */
+/** @typedef {import('./src/wdk.js').IWalletAccount} IWalletAccount */
+/** @typedef {import('./src/wdk.js').FeeRates} FeeRates */
+/** @typedef {import('./src/wdk.js').MiddlewareFunction} MiddlewareFunction */
 
 /** @typedef {import('./src/wallet-account-with-protocols.js').IWalletAccountWithProtocols} IWalletAccountWithProtocols */
 
-export { default } from './src/wdk-manager.js'
+export { default } from './src/wdk.js'

@@ -19,7 +19,7 @@ This repository is part of the Tether WDK (Wallet Development Kit) ecosystem. It
 
 ## Coding Conventions
 - **File Naming:** Kebab-case (e.g., `wallet-manager.js`).
-- **Class Naming:** PascalCase (e.g., `WdkManager`).
+- **Class Naming:** PascalCase (e.g., `WDK`).
 - **Private Members:** Prefixed with `_` (underscore) and explicitly documented with `@private`.
 - **Imports:** Explicit file extensions are mandatory (e.g., `import ... from './file.js'`).
 - **Copyright:** All source files must include the standard Tether copyright header.
@@ -46,4 +46,4 @@ Source code must be strictly typed using JSDoc comments to support the `build:ty
 - **Domain:** Core Orchestrator.
 - **Role:** Central entry point for the WDK. Manages lifecycle of multiple wallet instances and protocols.
 - **Key Pattern:** Dependency Injection (registerWallet, registerProtocol).
-- **Architecture:** `WdkManager` class manages a collection of `WalletManager` instances.
+- **Architecture:** `WDK` class manages a collection of `WalletManager` instances.

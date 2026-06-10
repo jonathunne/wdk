@@ -28,7 +28,7 @@ import { SwapProtocol, BridgeProtocol, LendingProtocol, FiatProtocol, SwidgeProt
 
 export default class WDK {
   /**
-   * Creates a new wallet development kit instance.
+   * Creates a new WDK.
    *
    * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase.
    * @throws {Error} If the seed is not valid.
@@ -49,6 +49,9 @@ export default class WDK {
 
     /** @private */
     this._middlewares = Object.create(null)
+
+    /** @private */
+    this._decoratedAccounts = new WeakSet()
   }
 
   /**
@@ -76,15 +79,20 @@ export default class WDK {
   }
 
   /**
-   * Registers a new wallet to WDK.
+   * Registers a new wallet to the WDK.
    *
    * @template {typeof WalletManager} W
    * @param {string} blockchain - The name of the blockchain the wallet must be bound to. Can be any string (e.g., "ethereum").
    * @param {W} WalletManager - The wallet manager class.
    * @param {ConstructorParameters<W>[1]} config - The configuration object.
-   * @returns {WDK} The wdk instance.
+   * @returns {WDK} The WDK.
+   * @throws {Error} If a wallet is already registered for the given blockchain.
    */
   registerWallet (blockchain, WalletManager, config) {
+    if (this._wallets.has(blockchain)) {
+      throw new Error(`A wallet is already registered for blockchain: ${blockchain}. Call dispose([${JSON.stringify(blockchain)}]) before re-registering.`)
+    }
+
     const wallet = new WalletManager(this._seed, config)
 
     this._wallets.set(blockchain, wallet)
@@ -93,7 +101,7 @@ export default class WDK {
   }
 
   /**
-   * Registers a new protocol to WDK.
+   * Registers a new protocol to the WDK.
    *
    * The label must be unique in the scope of the blockchain and the type of protocol (i.e., there can't be two protocols of the
    * same type bound to the same blockchain with the same label).
@@ -104,7 +112,7 @@ export default class WDK {
    * @param {string} label - The label.
    * @param {P} Protocol - The protocol class.
    * @param {ConstructorParameters<P>[1]} config - The protocol configuration.
-   * @returns {WDK} The wdk instance.
+   * @returns {WDK} The WDK.
    */
   registerProtocol (blockchain, label, Protocol, config) {
     if (Protocol.prototype instanceof SwidgeProtocol) {
@@ -133,13 +141,13 @@ export default class WDK {
   }
 
   /**
-   * Registers a new middleware to WDK.
+   * Registers a new middleware to the WDK.
    *
    * It's possible to register multiple middlewares for the same blockchain, which will be called sequentially.
    *
    * @param {string} blockchain - The name of the blockchain the middleware must be bound to. Can be any string (e.g., "ethereum").
    * @param {MiddlewareFunction} middleware - A callback function that is called each time the user derives a new account.
-   * @returns {WDK} The wdk instance.
+   * @returns {WDK} The WDK.
    */
   registerMiddleware (blockchain, middleware) {
     this._middlewares[blockchain] ??= []
@@ -241,7 +249,11 @@ export default class WDK {
 
   /** @private */
   _registerProtocols (account, { blockchain }) {
+    if (this._decoratedAccounts.has(account)) return
+
     const protocols = { swap: Object.create(null), bridge: Object.create(null), lending: Object.create(null), fiat: Object.create(null), swidge: Object.create(null) }
+
+    this._decoratedAccounts.add(account)
 
     account.registerProtocol = (label, Protocol, config) => {
       if (Protocol.prototype instanceof SwidgeProtocol) {
