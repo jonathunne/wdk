@@ -20,6 +20,7 @@ import PolicyViolationError, { PolicyConfigurationError } from './policy-error.j
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 /** @typedef {import('./policy-engine.js').default} PolicyEngine */
+/** @typedef {import('./policy-engine.js').WrapContext} WrapContext */
 
 const PROTOCOL_GETTERS = [
   ['getSwapProtocol', 'swap'],
@@ -58,11 +59,7 @@ const PROTOCOL_GETTERS = [
  *
  * @internal
  * @param {IWalletAccount} account - The underlying account from the wallet manager.
- * @param {Object} options - Wrap context.
- * @param {string} options.blockchain - The wallet identifier (treated as an opaque key by the engine).
- * @param {string | undefined} options.path - Derivation path of the account, when known.
- * @param {number | undefined} options.index - Index passed to `wdk.getAccount(wallet, index)`, when known.
- * @param {PolicyEngine} options.engine - The PolicyEngine instance the proxy delegates evaluation to.
+ * @param {WrapContext} options - The per-account routing context (wallet identifier, path/index, and the engine reference).
  * @returns {Promise<IWalletAccount>} The proxy-wrapped account, or the original if no policy applies.
  * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
  */

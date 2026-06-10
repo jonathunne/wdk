@@ -100,7 +100,7 @@ export const registerOptionsSchema = z.object({
  *
  * @internal
  * @param {string | string[] | undefined} wallet - The raw `wallet` field from a parsed policy.
- * @returns {string[] | undefined}
+ * @returns {string[] | undefined} Normalised wallet list, or undefined for "all wallets".
  */
 export function normalisePolicyWallet (wallet) {
   if (wallet === undefined) return undefined
@@ -115,7 +115,7 @@ export function normalisePolicyWallet (wallet) {
  * @internal
  * @param {ZodError} zodError - The error returned by `policySchema.safeParse`.
  * @param {Policy} policy - The policy candidate that failed validation; used to look up id and rule names for the prefix.
- * @returns {string}
+ * @returns {string} A human-readable message prefixed with the policy (and rule, where applicable) context.
  */
 export function formatPolicyError (zodError, policy) {
   const issue = zodError.issues[0]
@@ -146,7 +146,7 @@ export function formatPolicyError (zodError, policy) {
  *
  * @internal
  * @param {ZodError} zodError - The error returned by `registerOptionsSchema.safeParse`.
- * @returns {string}
+ * @returns {string} A human-readable message prefixed with `registerPolicy options`.
  */
 export function formatRegisterOptionsError (zodError) {
   const issue = zodError.issues[0]

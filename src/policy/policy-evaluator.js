@@ -21,11 +21,17 @@ import { ruleAddressesOperation } from './policy-validators.js'
 /** @typedef {import('./policy-registry.js').PolicyGroups} PolicyGroups */
 
 /**
+ * Engine-wide settings the evaluator needs at runtime (currently only
+ * the per-condition timeout).
+ *
  * @typedef {Object} EvaluateOptions
  * @property {number} conditionTimeoutMs - Per-condition timeout in milliseconds.
  */
 
 /**
+ * The internal verdict produced by `evaluate()`: ALLOW or BLOCK, plus
+ * the identifying triple and a per-rule trace.
+ *
  * @typedef {Object} Verdict
  * @property {'ALLOW' | 'BLOCK'} outcome - The evaluation outcome.
  * @property {string | null} policyId - Id of the policy that produced the verdict, or null when not-governed / governed-but-unmatched.

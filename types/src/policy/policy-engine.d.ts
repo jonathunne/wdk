@@ -33,18 +33,11 @@ export default class PolicyEngine {
      * never mutated. If no policy applies, returns the original account.
      *
      * @param {IWalletAccount} account - The raw account from the wallet manager. Mutated only by the WDK's `_registerProtocols` step (which runs before this method), not by the policy engine.
-     * @param {Object} ctx - The wrap context.
-     * @param {string} ctx.blockchain - The wallet identifier (named `blockchain` for parity with the WDK's existing API; treated as an opaque key here).
-     * @param {string | undefined} ctx.path - Derivation path of the account, when known.
-     * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
+     * @param {Omit<WrapContext, 'engine'>} ctx - The per-account routing context. The engine reference is supplied by `this`.
      * @returns {Promise<IWalletAccount>} The enforced proxy, or the original account if no policy applies.
      * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
      */
-    applyPoliciesTo(account: IWalletAccount, { blockchain, path, index }: {
-        blockchain: string;
-        path: string | undefined;
-        index?: number | undefined;
-    }): Promise<IWalletAccount>;
+    applyPoliciesTo(account: IWalletAccount, { blockchain, path, index }: Omit<WrapContext, "engine">): Promise<IWalletAccount>;
     /**
      * Removes account-scope and wallet-bound project policies registered under
      * the given wallet identifier.
@@ -77,6 +70,9 @@ export type PolicyScope = "project" | "account";
  * A wrapped operation name from the supported set, or `*` to match any wrapped operation.
  */
 export type PolicyOperation = "sendTransaction" | "transfer" | "approve" | "signMessage" | "signHash" | "signTypedData" | "signAuthorization" | "delegate" | "revokeDelegation" | "swap" | "bridge" | "supply" | "withdraw" | "borrow" | "repay" | "buy" | "sell" | "swidge" | "*";
+/**
+ * The frozen context object passed to every condition function during evaluation.
+ */
 export type PolicyContext = {
     /**
      * - The intercepted operation name.
@@ -105,6 +101,10 @@ export type PolicyContext = {
  * treated per the rule's fail mode (fail-closed for DENY, fail-open-as-no-match for ALLOW).
  */
 export type PolicyCondition = (context: PolicyContext) => boolean | Promise<boolean>;
+/**
+ * A single ALLOW/DENY decision within a policy, evaluated for one or more
+ * operations gated by a list of conditions.
+ */
 export type PolicyRule = {
     /**
      * - Stable identifier for the rule within its policy. Surfaces on PolicyViolationError.ruleName and in simulation traces.
@@ -145,6 +145,10 @@ export type PolicyRule = {
  * index (matched against the index passed to `wdk.getAccount(wallet, index)`).
  */
 export type AccountIdentifier = string | number;
+/**
+ * A user-supplied policy: identifies itself, optionally binds to one or more
+ * wallets/accounts, and carries an ordered list of rules.
+ */
 export type Policy = {
     /**
      * - Unique identifier within an engine. Re-registering the same id replaces the prior policy in the same wallet bucket.
@@ -171,6 +175,10 @@ export type Policy = {
      */
     rules: PolicyRule[];
 };
+/**
+ * Engine-wide settings supplied to `registerPolicy` (e.g. per-condition
+ * timeout). The most recent call's value wins.
+ */
 export type RegisterPolicyOptions = {
     /**
      * - Reserved for future use; currently ignored at runtime.
@@ -181,6 +189,10 @@ export type RegisterPolicyOptions = {
      */
     conditionTimeoutMs?: number;
 };
+/**
+ * One row in a simulation trace: the rule that was evaluated, its scope,
+ * and whether all conditions matched.
+ */
 export type SimulationTraceEntry = {
     /**
      * - The scope of the policy that emitted this trace entry.
@@ -203,6 +215,10 @@ export type SimulationTraceEntry = {
      */
     error?: string;
 };
+/**
+ * The structured verdict returned by `account.simulate.<method>(...)`:
+ * decision plus the identifying triple plus a per-rule trace.
+ */
 export type SimulationResult = {
     /**
      * - The verdict the engine would produce for this context.
@@ -224,4 +240,28 @@ export type SimulationResult = {
      * - Per-rule evaluation outcomes in the order they were considered. Useful for debugging.
      */
     trace: SimulationTraceEntry[];
+};
+/**
+ * The per-account routing context passed from the WDK manager into the
+ * policy engine / proxy wrapper. Identifies which wallet + which
+ * account-within-the-wallet a wrapped method is being invoked under,
+ * and carries the engine reference the proxy will delegate evaluation to.
+ */
+export type WrapContext = {
+    /**
+     * - The wallet identifier (the same string passed to `registerWallet`; treated as an opaque key here).
+     */
+    blockchain: string;
+    /**
+     * - Derivation path of the account, when known.
+     */
+    path: string | undefined;
+    /**
+     * - Index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
+     */
+    index?: number | undefined;
+    /**
+     * - The PolicyEngine instance the proxy delegates evaluation to.
+     */
+    engine: PolicyEngine;
 };

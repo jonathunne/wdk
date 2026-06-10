@@ -49,6 +49,8 @@ import {
  */
 
 /**
+ * The frozen context object passed to every condition function during evaluation.
+ *
  * @typedef {Object} PolicyContext
  * @property {PolicyOperation} operation - The intercepted operation name.
  * @property {string} wallet - The wallet identifier (the same string passed to `wdk.registerWallet`). Despite the name, this is an opaque key chosen by the consumer — it might be a chain name like `"ethereum"`, but it could equally be `"treasury-cold"` or any other label.
@@ -66,6 +68,9 @@ import {
  */
 
 /**
+ * A single ALLOW/DENY decision within a policy, evaluated for one or more
+ * operations gated by a list of conditions.
+ *
  * @typedef {Object} PolicyRule
  * @property {string} name - Stable identifier for the rule within its policy. Surfaces on PolicyViolationError.ruleName and in simulation traces.
  * @property {string} [reason] - Optional human-readable explanation. When set on a DENY rule that matches, propagates to PolicyViolationError.reason and to the matching simulate-result. Defaults to the rule's name.
@@ -86,6 +91,9 @@ import {
  */
 
 /**
+ * A user-supplied policy: identifies itself, optionally binds to one or more
+ * wallets/accounts, and carries an ordered list of rules.
+ *
  * @typedef {Object} Policy
  * @property {string} id - Unique identifier within an engine. Re-registering the same id replaces the prior policy in the same wallet bucket.
  * @property {string} name - Human-readable label.
@@ -96,12 +104,18 @@ import {
  */
 
 /**
+ * Engine-wide settings supplied to `registerPolicy` (e.g. per-condition
+ * timeout). The most recent call's value wins.
+ *
  * @typedef {Object} RegisterPolicyOptions
  * @property {Record<string, unknown>} [state] - Reserved for future use; currently ignored at runtime.
  * @property {number} [conditionTimeoutMs] - Per-condition evaluation timeout in milliseconds. Defaults to 30000. A condition that exceeds the timeout is treated the same as a throw — fail-closed for DENY rules, fail-open-as-no-match for ALLOW rules. Engine-wide; the most recent registerPolicy call's value wins.
  */
 
 /**
+ * One row in a simulation trace: the rule that was evaluated, its scope,
+ * and whether all conditions matched.
+ *
  * @typedef {Object} SimulationTraceEntry
  * @property {PolicyScope} scope - The scope of the policy that emitted this trace entry.
  * @property {string} policy_id - The id of the policy whose rule was evaluated.
@@ -111,12 +125,28 @@ import {
  */
 
 /**
+ * The structured verdict returned by `account.simulate.<method>(...)`:
+ * decision plus the identifying triple plus a per-rule trace.
+ *
  * @typedef {Object} SimulationResult
  * @property {'ALLOW' | 'DENY'} decision - The verdict the engine would produce for this context.
  * @property {string | null} policy_id - Id of the policy whose rule produced the verdict, or null when the verdict is `not-governed` / `governed-but-unmatched`.
  * @property {string | null} matched_rule - Name of the matching rule, or null when no rule matched.
  * @property {string | null} reason - Human-readable explanation: the rule's `reason` field, or one of `matched` / `override` / `not-governed` / `governed-but-unmatched`.
  * @property {SimulationTraceEntry[]} trace - Per-rule evaluation outcomes in the order they were considered. Useful for debugging.
+ */
+
+/**
+ * The per-account routing context passed from the WDK manager into the
+ * policy engine / proxy wrapper. Identifies which wallet + which
+ * account-within-the-wallet a wrapped method is being invoked under,
+ * and carries the engine reference the proxy will delegate evaluation to.
+ *
+ * @typedef {Object} WrapContext
+ * @property {string} blockchain - The wallet identifier (the same string passed to `registerWallet`; treated as an opaque key here).
+ * @property {string | undefined} path - Derivation path of the account, when known.
+ * @property {number | undefined} [index] - Index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
+ * @property {PolicyEngine} engine - The PolicyEngine instance the proxy delegates evaluation to.
  */
 
 const DEFAULT_CONDITION_TIMEOUT_MS = 30_000
@@ -191,10 +221,7 @@ export default class PolicyEngine {
    * never mutated. If no policy applies, returns the original account.
    *
    * @param {IWalletAccount} account - The raw account from the wallet manager. Mutated only by the WDK's `_registerProtocols` step (which runs before this method), not by the policy engine.
-   * @param {Object} ctx - The wrap context.
-   * @param {string} ctx.blockchain - The wallet identifier (named `blockchain` for parity with the WDK's existing API; treated as an opaque key here).
-   * @param {string | undefined} ctx.path - Derivation path of the account, when known.
-   * @param {number | undefined} [ctx.index] - The index passed to `wdk.getAccount(wallet, index)`, when known. Used to match index-form entries in `policy.accounts`.
+   * @param {Omit<WrapContext, 'engine'>} ctx - The per-account routing context. The engine reference is supplied by `this`.
    * @returns {Promise<IWalletAccount>} The enforced proxy, or the original account if no policy applies.
    * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
    */

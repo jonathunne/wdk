@@ -15,6 +15,9 @@
 'use strict'
 
 /**
+ * The identifying triple a DENY verdict carries: which policy, which rule,
+ * and the human-readable reason.
+ *
  * @typedef {Object} PolicyVerdict
  * @property {string} policyId - The id of the policy that produced the verdict.
  * @property {string} ruleName - The name of the matching rule.

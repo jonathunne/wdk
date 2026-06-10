@@ -27,19 +27,11 @@
  *
  * @internal
  * @param {IWalletAccount} account - The underlying account from the wallet manager.
- * @param {Object} options - Wrap context.
- * @param {string} options.blockchain - The wallet identifier (treated as an opaque key by the engine).
- * @param {string | undefined} options.path - Derivation path of the account, when known.
- * @param {number | undefined} options.index - Index passed to `wdk.getAccount(wallet, index)`, when known.
- * @param {PolicyEngine} options.engine - The PolicyEngine instance the proxy delegates evaluation to.
+ * @param {WrapContext} options - The per-account routing context (wallet identifier, path/index, and the engine reference).
  * @returns {Promise<IWalletAccount>} The proxy-wrapped account, or the original if no policy applies.
  * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
  */
-export function createPolicyEnforcedAccount(account: IWalletAccount, { blockchain, path, index, engine }: {
-    blockchain: string;
-    path: string | undefined;
-    index: number | undefined;
-    engine: PolicyEngine;
-}): Promise<IWalletAccount>;
+export function createPolicyEnforcedAccount(account: IWalletAccount, { blockchain, path, index, engine }: WrapContext): Promise<IWalletAccount>;
 export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
 export type PolicyEngine = import("./policy-engine.js").default;
+export type WrapContext = import("./policy-engine.js").WrapContext;

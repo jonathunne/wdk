@@ -2,10 +2,16 @@
 /** @typedef {import('./policy-engine.js').SimulationTraceEntry} SimulationTraceEntry */
 /** @typedef {import('./policy-registry.js').PolicyGroups} PolicyGroups */
 /**
+ * Engine-wide settings the evaluator needs at runtime (currently only
+ * the per-condition timeout).
+ *
  * @typedef {Object} EvaluateOptions
  * @property {number} conditionTimeoutMs - Per-condition timeout in milliseconds.
  */
 /**
+ * The internal verdict produced by `evaluate()`: ALLOW or BLOCK, plus
+ * the identifying triple and a per-rule trace.
+ *
  * @typedef {Object} Verdict
  * @property {'ALLOW' | 'BLOCK'} outcome - The evaluation outcome.
  * @property {string | null} policyId - Id of the policy that produced the verdict, or null when not-governed / governed-but-unmatched.
@@ -28,12 +34,20 @@ export function evaluate(context: PolicyContext, groups: PolicyGroups, options: 
 export type PolicyContext = import("./policy-engine.js").PolicyContext;
 export type SimulationTraceEntry = import("./policy-engine.js").SimulationTraceEntry;
 export type PolicyGroups = import("./policy-registry.js").PolicyGroups;
+/**
+ * Engine-wide settings the evaluator needs at runtime (currently only
+ * the per-condition timeout).
+ */
 export type EvaluateOptions = {
     /**
      * - Per-condition timeout in milliseconds.
      */
     conditionTimeoutMs: number;
 };
+/**
+ * The internal verdict produced by `evaluate()`: ALLOW or BLOCK, plus
+ * the identifying triple and a per-rule trace.
+ */
 export type Verdict = {
     /**
      * - The evaluation outcome.

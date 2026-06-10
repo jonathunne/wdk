@@ -17,6 +17,8 @@
 /** @typedef {import('./policy-engine.js').Policy} Policy */
 
 /**
+ * Policies applicable to a given (wallet, path, index) tuple, partitioned by scope.
+ *
  * @typedef {Object} PolicyGroups
  * @property {Policy[]} account - Account-scope policies applicable to the call.
  * @property {Policy[]} project - Project-scope policies applicable to the call.

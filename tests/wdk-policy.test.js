@@ -11,22 +11,23 @@ import WDK, { PolicyConfigurationError, PolicyViolationError } from '../index.js
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
 // Stub return values (DUMMY_ prefix per CQ5).
-const DUMMY_TX_HASH = '0xtx-hash-dummy'
-const DUMMY_TRANSFER_HASH = '0xtransfer-hash-dummy'
-const DUMMY_SIGNATURE = '0xsig-dummy'
+const DUMMY_TX_HASH = '0xdummy-tx-hash'
+const DUMMY_TRANSFER_HASH = '0xdummy-transfer-hash'
+const DUMMY_SIGNATURE = '0xdummy-sig'
 const DUMMY_BALANCE = 1000n
 const DUMMY_QUOTE = { fee: 1n }
-const DUMMY_SWAP_RESULT = { hash: '0xswap-hash-dummy' }
-const DUMMY_BRIDGE_RESULT = { hash: '0xbridge-hash-dummy' }
-const DUMMY_SWIDGE_RESULT = { hash: '0xswidge-hash-dummy' }
+const DUMMY_SWAP_RESULT = { hash: '0xdummy-swap-hash' }
+const DUMMY_BRIDGE_RESULT = { hash: '0xdummy-bridge-hash' }
+const DUMMY_SWIDGE_RESULT = { hash: '0xdummy-swidge-hash' }
 
-// Test inputs (no DUMMY_ prefix per CQ5).
+// Test inputs (no DUMMY_ prefix per CQ5). Addresses are valid EVM shape
+// (0x + 40 hex) using repeating digits to encode the role at a glance.
 const PATH_DEFAULT = "0'/0/0"
 const PATH_SECONDARY = "0'/0/1"
-const RECIPIENT = '0xrecipient'
-const SANCTIONED = '0xsanctioned'
-const SPENDER = '0xspender'
-const TOKEN = '0xtoken'
+const RECIPIENT = '0x1111111111111111111111111111111111111111'
+const SANCTIONED = '0x2222222222222222222222222222222222222222'
+const SPENDER = '0x3333333333333333333333333333333333333333'
+const TOKEN = '0x4444444444444444444444444444444444444444'
 
 // Mock references for the wallet boundary (the only legitimate mock surface).
 const sendTransactionMock = jest.fn()
@@ -726,6 +727,9 @@ describe('WDK — policy engine', () => {
       expect(totalSpent).toBe(80n)
       expect(blocked.name).toBe('PolicyViolationError')
       expect(blocked.reason).toBe('governed-but-unmatched')
+      expect(sendTransactionMock).toHaveBeenCalledTimes(2)
+      expect(sendTransactionMock).toHaveBeenNthCalledWith(1, { to: RECIPIENT, value: 30n })
+      expect(sendTransactionMock).toHaveBeenNthCalledWith(2, { to: RECIPIENT, value: 50n })
     })
 
     test('a throwing condition is treated as a non-match and recorded in the simulate trace', async () => {

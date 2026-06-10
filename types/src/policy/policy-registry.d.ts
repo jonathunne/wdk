@@ -1,5 +1,7 @@
 /** @typedef {import('./policy-engine.js').Policy} Policy */
 /**
+ * Policies applicable to a given (wallet, path, index) tuple, partitioned by scope.
+ *
  * @typedef {Object} PolicyGroups
  * @property {Policy[]} account - Account-scope policies applicable to the call.
  * @property {Policy[]} project - Project-scope policies applicable to the call.
@@ -78,6 +80,9 @@ export default class PolicyRegistry {
     disposeAll(): void;
 }
 export type Policy = import("./policy-engine.js").Policy;
+/**
+ * Policies applicable to a given (wallet, path, index) tuple, partitioned by scope.
+ */
 export type PolicyGroups = {
     /**
      * - Account-scope policies applicable to the call.
