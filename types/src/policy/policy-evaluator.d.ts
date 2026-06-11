@@ -14,9 +14,9 @@
  *
  * @typedef {Object} Verdict
  * @property {'ALLOW' | 'BLOCK'} outcome - The evaluation outcome.
- * @property {string | null} policyId - Id of the policy that produced the verdict, or null when not-governed / governed-but-unmatched.
+ * @property {string | null} policyId - Id of the policy that produced the verdict, or null when no rule addresses the operation (`no-applicable-rule`) or matched (`governed-but-unmatched`).
  * @property {string | null} ruleName - Name of the rule that matched, or null.
- * @property {string | null} reason - Human-readable reason (rule.reason or one of `matched` / `override` / `not-governed` / `governed-but-unmatched`).
+ * @property {string | null} reason - Human-readable reason (rule.reason or one of `matched` / `override` / `no-applicable-rule` / `governed-but-unmatched`).
  * @property {SimulationTraceEntry[]} trace - Per-rule evaluation outcomes in order.
  */
 /**
@@ -54,7 +54,7 @@ export type Verdict = {
      */
     outcome: "ALLOW" | "BLOCK";
     /**
-     * - Id of the policy that produced the verdict, or null when not-governed / governed-but-unmatched.
+     * - Id of the policy that produced the verdict, or null when no rule addresses the operation (`no-applicable-rule`) or matched (`governed-but-unmatched`).
      */
     policyId: string | null;
     /**
@@ -62,7 +62,7 @@ export type Verdict = {
      */
     ruleName: string | null;
     /**
-     * - Human-readable reason (rule.reason or one of `matched` / `override` / `not-governed` / `governed-but-unmatched`).
+     * - Human-readable reason (rule.reason or one of `matched` / `override` / `no-applicable-rule` / `governed-but-unmatched`).
      */
     reason: string | null;
     /**

@@ -25,15 +25,6 @@ export function validatePolicy(policy: Policy): string[] | undefined;
  * @returns {boolean} True if the rule's operation field includes this operation (literal or via wildcard).
  */
 export function ruleAddressesOperation(rule: PolicyRule, operation: string): boolean;
-/**
- * Returns the union of operation names referenced by the given policies.
- * If any rule uses the wildcard, the result includes the full operation set.
- *
- * @internal
- * @param {Iterable<Policy>} policies - The policies whose rules should be scanned.
- * @returns {Set<string>} Operation names that need wrapping for this account.
- */
-export function collectReferencedOperations(policies: Iterable<Policy>): Set<string>;
 export { normalisePolicyWallet };
 export type Policy = import("./policy-engine.js").Policy;
 export type PolicyRule = import("./policy-engine.js").PolicyRule;

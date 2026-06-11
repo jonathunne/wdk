@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { OPERATIONS, WILDCARD } from './constants.js'
+import { WILDCARD } from './constants.js'
 import { PolicyConfigurationError } from './policy-error.js'
 import {
   formatPolicyError,
@@ -24,7 +24,6 @@ import {
   registerOptionsSchema
 } from './policy-schemas.js'
 
-/** @typedef {import('./policy-engine.js').Policy} Policy */
 /** @typedef {import('./policy-engine.js').PolicyRule} PolicyRule */
 /** @typedef {import('./policy-engine.js').RegisterPolicyOptions} RegisterPolicyOptions */
 
@@ -82,32 +81,4 @@ export function ruleAddressesOperation (rule, operation) {
   }
 
   return false
-}
-
-/**
- * Returns the union of operation names referenced by the given policies.
- * If any rule uses the wildcard, the result includes the full operation set.
- *
- * @internal
- * @param {Iterable<Policy>} policies - The policies whose rules should be scanned.
- * @returns {Set<string>} Operation names that need wrapping for this account.
- */
-export function collectReferencedOperations (policies) {
-  const operations = new Set()
-
-  for (const policy of policies) {
-    for (const rule of policy.rules) {
-      if (rule.operation === WILDCARD || rule.operation.includes(WILDCARD)) {
-        return new Set(OPERATIONS)
-      }
-
-      if (Array.isArray(rule.operation)) {
-        for (const op of rule.operation) operations.add(op)
-      } else {
-        operations.add(rule.operation)
-      }
-    }
-  }
-
-  return operations
 }

@@ -19,7 +19,6 @@ import { PolicyConfigurationError } from './policy-error.js'
 import { evaluate } from './policy-evaluator.js'
 import PolicyRegistry from './policy-registry.js'
 import {
-  collectReferencedOperations,
   validatePolicy,
   validateRegisterOptions
 } from './policy-validators.js'
@@ -131,9 +130,9 @@ import {
  *
  * @typedef {Object} SimulationResult
  * @property {'ALLOW' | 'DENY'} decision - The verdict the engine would produce for this context.
- * @property {string | null} policy_id - Id of the policy whose rule produced the verdict, or null when the verdict is `not-governed` / `governed-but-unmatched`.
+ * @property {string | null} policy_id - Id of the policy whose rule produced the verdict, or null when no rule addresses the operation (`no-applicable-rule`) or matched (`governed-but-unmatched`).
  * @property {string | null} matched_rule - Name of the matching rule, or null when no rule matched.
- * @property {string | null} reason - Human-readable explanation: the rule's `reason` field, or one of `matched` / `override` / `not-governed` / `governed-but-unmatched`.
+ * @property {string | null} reason - Human-readable explanation: the rule's `reason` field, or one of `matched` / `override` / `no-applicable-rule` / `governed-but-unmatched`.
  * @property {SimulationTraceEntry[]} trace - Per-rule evaluation outcomes in the order they were considered. Useful for debugging.
  */
 
@@ -150,13 +149,22 @@ import {
  * @property {PolicyEngine} engine - The PolicyEngine instance the proxy delegates evaluation to.
  */
 
+/**
+ * Optional context passed alongside `register()` so the engine can verify
+ * wallet bindings against the host application's registry before mutating
+ * its own.
+ *
+ * @typedef {Object} RegistrationContext
+ * @property {Set<string>} [knownWallets] - Set of wallet identifiers the host considers registered. When provided, the engine throws if any policy binds to a wallet not in the set.
+ */
+
 const DEFAULT_CONDITION_TIMEOUT_MS = 30_000
 
 /**
  * The orchestration façade. Owns the registry; exposes the two methods the
  * `WDK` class calls (`register`, `applyPoliciesTo`). Internal helpers
- * (`_relevantOperations`, `_evaluateContext`, `_simulateContext`) are used
- * by the wrapper module.
+ * (`_isGoverned`, `_evaluateContext`, `_simulateContext`) are used by the
+ * wrapper module.
  *
  * @internal
  */
@@ -176,10 +184,7 @@ export default class PolicyEngine {
    *
    * @param {Policy | Policy[]} policies - A single policy or array of policies to register.
    * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`.
-   * @param {{ knownWallets?: Set<string> }} [registrationContext] - Optional
-   *   set of registered wallet identifiers. When provided, the engine verifies
-   *   every wallet binding referenced by the policies is in this set before
-   *   touching the registry.
+   * @param {RegistrationContext} [registrationContext] - Optional set of registered wallet identifiers. When provided, the engine verifies every wallet binding referenced by the policies is in the set before touching the registry.
    * @throws {PolicyConfigurationError} If any policy or option fails schema validation, the input is an empty array, or a policy binds to a wallet not present in `registrationContext.knownWallets`.
    */
   register (policies, options, registrationContext) {
@@ -252,11 +257,6 @@ export default class PolicyEngine {
     const groups = this._registry.applicable(wallet, path, index)
 
     return groups.account.length > 0 || groups.project.length > 0
-  }
-
-  /** @private */
-  _relevantOperations (wallet, path, index) {
-    return collectReferencedOperations(this._registry.relevant(wallet, path, index))
   }
 
   /** @private */

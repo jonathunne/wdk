@@ -334,8 +334,16 @@ describe('WDK — policy engine', () => {
       const account = await wdk.getAccount('ethereum', 0)
       await account.sendTransaction({ to: RECIPIENT, value: 1n })
 
+      const expectedContext = expect.objectContaining({
+        operation: 'sendTransaction',
+        wallet: 'ethereum',
+        params: { to: RECIPIENT, value: 1n }
+      })
+
       expect(firstCondition).toHaveBeenCalledTimes(1)
+      expect(firstCondition).toHaveBeenCalledWith(expectedContext)
       expect(secondCondition).toHaveBeenCalledTimes(1)
+      expect(secondCondition).toHaveBeenCalledWith(expectedContext)
     })
   })
 
@@ -453,9 +461,15 @@ describe('WDK — policy engine', () => {
       expect(transferErr.reason).toBe('no-applicable-rule')
       expect(transferMock).not.toHaveBeenCalled()
 
-      // simulate mirrors every wrapped op.
-      expect(account.simulate.sendTransaction).not.toBeUndefined()
-      expect(account.simulate.transfer).not.toBeUndefined()
+      // simulate mirrors every wrapped op; calling each returns a structured
+      // verdict matching the rule (or no-applicable-rule for unaddressed ops).
+      const simSend = await account.simulate.sendTransaction({ to: RECIPIENT, value: 1n })
+      const simTransfer = await account.simulate.transfer({ token: TOKEN, recipient: RECIPIENT, amount: 1n })
+
+      expect(simSend.decision).toBe('DENY')
+      expect(simSend.policy_id).toBe('only-send')
+      expect(simTransfer.decision).toBe('DENY')
+      expect(simTransfer.reason).toBe('no-applicable-rule')
     })
 
     test('read-only methods (getBalance, quoteTransfer) are not wrapped or mirrored in simulate', async () => {
@@ -1302,16 +1316,18 @@ describe('WDK — policy engine', () => {
       const account = await wdk.getAccount('ethereum', 0)
 
       // Every OPERATIONS method present on the account is mirrored on
-      // governed accounts — including sign, transfer, etc.
-      expect(account.simulate.sign).not.toBeUndefined()
-      expect(account.simulate.sendTransaction).not.toBeUndefined()
+      // governed accounts. Calling each via simulate returns a verdict:
+      // sign is unaddressed → no-applicable-rule; sendTransaction is the
+      // only-send ALLOW rule → matched.
+      const simSign = await account.simulate.sign('hello')
+      const simSend = await account.simulate.sendTransaction({ to: RECIPIENT, value: 1n })
 
-      // Unaddressed op via simulate → DENY with no-applicable-rule.
-      const sim = await account.simulate.sign('hello')
-      expect(sim.decision).toBe('DENY')
-      expect(sim.policy_id).toBeNull()
-      expect(sim.matched_rule).toBeNull()
-      expect(sim.reason).toBe('no-applicable-rule')
+      expect(simSign.decision).toBe('DENY')
+      expect(simSign.policy_id).toBeNull()
+      expect(simSign.matched_rule).toBeNull()
+      expect(simSign.reason).toBe('no-applicable-rule')
+      expect(simSend.decision).toBe('ALLOW')
+      expect(simSend.policy_id).toBe('only-send')
       expect(signMock).not.toHaveBeenCalled()
     })
   })
@@ -1347,7 +1363,13 @@ describe('WDK — policy engine', () => {
       await account.approve({ token: TOKEN, spender: SPENDER, amount: 1n })
 
       expect(condition).toHaveBeenCalledTimes(1)
+      expect(condition).toHaveBeenCalledWith(expect.objectContaining({
+        operation: 'approve',
+        wallet: 'ethereum',
+        params: { token: TOKEN, spender: SPENDER, amount: 1n }
+      }))
       expect(sendTransactionMock).toHaveBeenCalledTimes(1)
+      expect(sendTransactionMock).toHaveBeenCalledWith({ to: SPENDER, value: 0n })
     })
 
     test('concurrent calls on the same account each evaluate policies independently', async () => {
@@ -1383,7 +1405,19 @@ describe('WDK — policy engine', () => {
       expect(resultA.hash).toBe(DUMMY_TX_HASH)
       expect(resultB.hash).toBe(DUMMY_TX_HASH)
       expect(condition).toHaveBeenCalledTimes(2)
+      expect(condition).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        operation: 'sendTransaction',
+        wallet: 'ethereum',
+        params: { to: RECIPIENT, value: 1n }
+      }))
+      expect(condition).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        operation: 'sendTransaction',
+        wallet: 'ethereum',
+        params: { to: RECIPIENT, value: 2n }
+      }))
       expect(sendTransactionMock).toHaveBeenCalledTimes(2)
+      expect(sendTransactionMock).toHaveBeenNthCalledWith(1, { to: RECIPIENT, value: 1n })
+      expect(sendTransactionMock).toHaveBeenNthCalledWith(2, { to: RECIPIENT, value: 2n })
     })
 
     test('concurrent calls under a DENY policy both throw PolicyViolationError', async () => {
@@ -1640,7 +1674,12 @@ describe('WDK — policy engine', () => {
 
       expect(result.hash).toBe(DUMMY_TX_HASH)
       expect(condition).toHaveBeenCalledTimes(1)
+      expect(condition).toHaveBeenCalledWith(expect.objectContaining({
+        operation: 'bridge',
+        wallet: 'ethereum'
+      }))
       expect(sendTransactionMock).toHaveBeenCalledTimes(1)
+      expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
     })
 
     test('a swidge protocol write method is wrapped and blocks on DENY', async () => {

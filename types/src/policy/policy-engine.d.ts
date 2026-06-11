@@ -1,8 +1,8 @@
 /**
  * The orchestration façade. Owns the registry; exposes the two methods the
  * `WDK` class calls (`register`, `applyPoliciesTo`). Internal helpers
- * (`_relevantOperations`, `_evaluateContext`, `_simulateContext`) are used
- * by the wrapper module.
+ * (`_isGoverned`, `_evaluateContext`, `_simulateContext`) are used by the
+ * wrapper module.
  *
  * @internal
  */
@@ -18,15 +18,10 @@ export default class PolicyEngine {
      *
      * @param {Policy | Policy[]} policies - A single policy or array of policies to register.
      * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`.
-     * @param {{ knownWallets?: Set<string> }} [registrationContext] - Optional
-     *   set of registered wallet identifiers. When provided, the engine verifies
-     *   every wallet binding referenced by the policies is in this set before
-     *   touching the registry.
+     * @param {RegistrationContext} [registrationContext] - Optional set of registered wallet identifiers. When provided, the engine verifies every wallet binding referenced by the policies is in the set before touching the registry.
      * @throws {PolicyConfigurationError} If any policy or option fails schema validation, the input is an empty array, or a policy binds to a wallet not present in `registrationContext.knownWallets`.
      */
-    register(policies: Policy | Policy[], options?: RegisterPolicyOptions, registrationContext?: {
-        knownWallets?: Set<string>;
-    }): void;
+    register(policies: Policy | Policy[], options?: RegisterPolicyOptions, registrationContext?: RegistrationContext): void;
     /**
      * Returns a policy-enforced view of the given account — a Proxy that
      * exposes enforced versions of write methods. The original account is
@@ -51,8 +46,6 @@ export default class PolicyEngine {
     disposeAll(): void;
     /** @private */
     private _isGoverned;
-    /** @private */
-    private _relevantOperations;
     /** @private */
     private _evaluateContext;
     /** @private */
@@ -228,7 +221,7 @@ export type SimulationResult = {
      */
     decision: "ALLOW" | "DENY";
     /**
-     * - Id of the policy whose rule produced the verdict, or null when the verdict is `not-governed` / `governed-but-unmatched`.
+     * - Id of the policy whose rule produced the verdict, or null when no rule addresses the operation (`no-applicable-rule`) or matched (`governed-but-unmatched`).
      */
     policy_id: string | null;
     /**
@@ -236,7 +229,7 @@ export type SimulationResult = {
      */
     matched_rule: string | null;
     /**
-     * - Human-readable explanation: the rule's `reason` field, or one of `matched` / `override` / `not-governed` / `governed-but-unmatched`.
+     * - Human-readable explanation: the rule's `reason` field, or one of `matched` / `override` / `no-applicable-rule` / `governed-but-unmatched`.
      */
     reason: string | null;
     /**
@@ -267,4 +260,15 @@ export type WrapContext = {
      * - The PolicyEngine instance the proxy delegates evaluation to.
      */
     engine: PolicyEngine;
+};
+/**
+ * Optional context passed alongside `register()` so the engine can verify
+ * wallet bindings against the host application's registry before mutating
+ * its own.
+ */
+export type RegistrationContext = {
+    /**
+     * - Set of wallet identifiers the host considers registered. When provided, the engine throws if any policy binds to a wallet not in the set.
+     */
+    knownWallets?: Set<string>;
 };
