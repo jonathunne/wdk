@@ -19,6 +19,7 @@ const DUMMY_QUOTE = { fee: 1n }
 const DUMMY_SWAP_RESULT = { hash: '0xdummy-swap-hash' }
 const DUMMY_BRIDGE_RESULT = { hash: '0xdummy-bridge-hash' }
 const DUMMY_SWIDGE_RESULT = { hash: '0xdummy-swidge-hash' }
+const DUMMY_SIGNED_TX = '0xdummy-signed-tx'
 
 // Test inputs (no DUMMY_ prefix per CQ5). Addresses are valid EVM shape
 // (0x + 40 hex) using repeating digits to encode the role at a glance.
@@ -31,9 +32,10 @@ const TOKEN = '0x4444444444444444444444444444444444444444'
 
 // Mock references for the wallet boundary (the only legitimate mock surface).
 const sendTransactionMock = jest.fn()
+const signTransactionMock = jest.fn()
 const transferMock = jest.fn()
 const approveMock = jest.fn()
-const signMessageMock = jest.fn()
+const signMock = jest.fn()
 const getBalanceMock = jest.fn()
 const quoteTransferMock = jest.fn()
 const getAccountMock = jest.fn()
@@ -52,9 +54,10 @@ const buildAccount = (path = PATH_DEFAULT, overrides = {}) => ({
   path,
   index: parseInt(path.split('/').pop(), 10) || 0,
   sendTransaction: sendTransactionMock,
+  signTransaction: signTransactionMock,
   transfer: transferMock,
   approve: approveMock,
-  signMessage: signMessageMock,
+  sign: signMock,
   getBalance: getBalanceMock,
   quoteTransfer: quoteTransferMock,
   toReadOnlyAccount: async () => ({
@@ -94,9 +97,10 @@ describe('WDK — policy engine', () => {
 
   beforeEach(() => {
     sendTransactionMock.mockReset().mockResolvedValue({ hash: DUMMY_TX_HASH })
+    signTransactionMock.mockReset().mockResolvedValue(DUMMY_SIGNED_TX)
     transferMock.mockReset().mockResolvedValue({ hash: DUMMY_TRANSFER_HASH })
     approveMock.mockReset()
-    signMessageMock.mockReset().mockResolvedValue(DUMMY_SIGNATURE)
+    signMock.mockReset().mockResolvedValue(DUMMY_SIGNATURE)
     getBalanceMock.mockReset().mockResolvedValue(DUMMY_BALANCE)
     quoteTransferMock.mockReset().mockResolvedValue(DUMMY_QUOTE)
     getAccountMock.mockReset()
@@ -467,6 +471,113 @@ describe('WDK — policy engine', () => {
   })
 
   // -------------------------------------------------------------------------
+  // Coverage of every signing/value-moving primitive on IWalletAccount
+  //
+  // The policy engine wraps methods named in OPERATIONS that also exist on
+  // the underlying account. If OPERATIONS or the names diverge from the
+  // canonical IWalletAccount API, a policy registers but silently no-ops,
+  // which is worse than throwing — these tests pin the contract.
+  // -------------------------------------------------------------------------
+
+  describe('IWalletAccount surface coverage', () => {
+    test('DENY on signTransaction blocks proxy.signTransaction', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'no-sign-tx',
+          name: 'no-sign-tx',
+          scope: 'project',
+          rules: [{ name: 'deny-sign-tx', operation: 'signTransaction', action: 'DENY', conditions: [] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      const err = await catchAsync(() => account.signTransaction({ to: SANCTIONED, value: 1n }))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.policyId).toBe('no-sign-tx')
+      expect(signTransactionMock).not.toHaveBeenCalled()
+    })
+
+    test('wildcard * also catches signTransaction', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'block-all',
+          name: 'block-all',
+          scope: 'project',
+          rules: [{ name: 'deny-all', operation: '*', action: 'DENY', conditions: [] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      const err = await catchAsync(() => account.signTransaction({ to: SANCTIONED, value: 1n }))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.ruleName).toBe('deny-all')
+      expect(signTransactionMock).not.toHaveBeenCalled()
+    })
+
+    test('ALLOW signTransaction forwards the original tx through to the wallet', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'allow-sign-tx',
+          name: 'allow-sign-tx',
+          scope: 'project',
+          rules: [{ name: 'r', operation: 'signTransaction', action: 'ALLOW', conditions: [] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      const signed = await account.signTransaction({ to: RECIPIENT, value: 1n })
+
+      expect(signed).toBe(DUMMY_SIGNED_TX)
+      expect(signTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
+    })
+
+    test('DENY on sign blocks proxy.sign (the IWalletAccount method is sign, not signMessage)', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'no-sign',
+          name: 'no-sign',
+          scope: 'project',
+          rules: [{ name: 'deny-sign', operation: 'sign', action: 'DENY', conditions: [] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      const err = await catchAsync(() => account.sign('hello'))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.policyId).toBe('no-sign')
+      expect(signMock).not.toHaveBeenCalled()
+    })
+
+    test('signMessage and signHash are rejected at registration as unknown operations', () => {
+      const wrong = (op) => ({
+        id: 'p',
+        name: 'p',
+        scope: 'project',
+        rules: [{ name: 'r', operation: op, action: 'DENY', conditions: [] }]
+      })
+
+      const errMsg = catchSync(() => wdk.registerPolicy(wrong('signMessage')))
+      const errHash = catchSync(() => wdk.registerPolicy(wrong('signHash')))
+
+      expect(errMsg.name).toBe('PolicyConfigurationError')
+      expect(errMsg.message).toBe("Rule 'r' in policy 'p': 'operation': Invalid input")
+      expect(errHash.name).toBe('PolicyConfigurationError')
+      expect(errHash.message).toBe("Rule 'r' in policy 'p': 'operation': Invalid input")
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // PolicyViolationError shape
   // -------------------------------------------------------------------------
 
@@ -568,7 +679,7 @@ describe('WDK — policy engine', () => {
         })
 
       const account = await wdk.getAccount('ethereum', 0)
-      const result = await account.signMessage('hello')
+      const result = await account.sign('hello')
 
       expect(result).toBe(DUMMY_SIGNATURE)
     })
@@ -639,8 +750,8 @@ describe('WDK — policy engine', () => {
       expect(transferErr.name).toBe('PolicyViolationError')
       expect(transferErr.ruleName).toBe('deny-pair')
 
-      // signMessage is not in the array → passthrough.
-      const sig = await account.signMessage('hi')
+      // sign is not in the array → passthrough.
+      const sig = await account.sign('hi')
       expect(sig).toBe(DUMMY_SIGNATURE)
     })
 
@@ -658,7 +769,7 @@ describe('WDK — policy engine', () => {
 
       const account = await wdk.getAccount('ethereum', 0)
       const sendErr = await catchAsync(() => account.sendTransaction({ to: RECIPIENT, value: 1n }))
-      const sigErr = await catchAsync(() => account.signMessage('hi'))
+      const sigErr = await catchAsync(() => account.sign('hi'))
 
       expect(sendErr.name).toBe('PolicyViolationError')
       expect(sendErr.ruleName).toBe('block-all')
@@ -1033,8 +1144,8 @@ describe('WDK — policy engine', () => {
         .registerPolicy(projectAllowAll('only-send'))
 
       const account = await wdk.getAccount('ethereum', 0)
-      // simulate is only built for wrapped methods; signMessage is not wrapped.
-      expect(account.simulate.signMessage).toBeUndefined()
+      // simulate is only built for wrapped methods; sign is not wrapped.
+      expect(account.simulate.sign).toBeUndefined()
 
       // A wrapped op with no matching rule case is shown above; this asserts the simulate mirror only contains wrapped ops.
       expect(account.simulate.sendTransaction).not.toBeUndefined()

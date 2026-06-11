@@ -14,12 +14,16 @@
 
 'use strict'
 
+// Every entry must be the exact method name on `@tetherto/wdk-wallet`'s
+// IWalletAccount or an installed protocol class. The engine wraps methods by
+// looking them up on the account by name — a mismatch silently no-ops, which
+// is worse than a hard error. Audit upstream wallets before adding/removing.
 export const OPERATIONS = [
   'sendTransaction',
+  'signTransaction',
   'transfer',
   'approve',
-  'signMessage',
-  'signHash',
+  'sign',
   'signTypedData',
   'signAuthorization',
   'delegate',
