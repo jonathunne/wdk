@@ -24,6 +24,7 @@ import {
   registerOptionsSchema
 } from './policy-schemas.js'
 
+/** @typedef {import('./policy-engine.js').Policy} Policy */
 /** @typedef {import('./policy-engine.js').PolicyRule} PolicyRule */
 /** @typedef {import('./policy-engine.js').RegisterPolicyOptions} RegisterPolicyOptions */
 
