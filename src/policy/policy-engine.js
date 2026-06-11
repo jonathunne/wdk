@@ -248,6 +248,13 @@ export default class PolicyEngine {
   }
 
   /** @private */
+  _isGoverned (wallet, path, index) {
+    const groups = this._registry.applicable(wallet, path, index)
+
+    return groups.account.length > 0 || groups.project.length > 0
+  }
+
+  /** @private */
   _relevantOperations (wallet, path, index) {
     return collectReferencedOperations(this._registry.relevant(wallet, path, index))
   }

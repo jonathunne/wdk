@@ -50,6 +50,8 @@ export default class PolicyEngine {
      */
     disposeAll(): void;
     /** @private */
+    private _isGoverned;
+    /** @private */
     private _relevantOperations;
     /** @private */
     private _evaluateContext;

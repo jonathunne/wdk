@@ -58,8 +58,16 @@ export async function evaluate (context, groups, options) {
     addresses(groups.account, context.operation) ||
     addresses(groups.project, context.operation)
 
+  // Default-deny semantics: any account the proxy wraps is governed (at
+  // least one policy applies). If no rule addresses this specific operation,
+  // BLOCK rather than ALLOW — otherwise a "cap transfer" policy would do
+  // nothing about sibling money-movement methods (sendTransaction with
+  // ERC-20 calldata, signTypedData for Permit, delegate, etc.).
+  //
+  // To opt back into permissive semantics, register a wildcard ALLOW:
+  //   { operation: '*', action: 'ALLOW', conditions: [] }
   if (!anyAddresses) {
-    return makeAllow(null, null, 'not-governed', trace)
+    return makeBlock(null, null, 'no-applicable-rule', trace)
   }
 
   const recordedAllows = []

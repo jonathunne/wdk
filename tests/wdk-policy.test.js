@@ -429,7 +429,7 @@ describe('WDK — policy engine', () => {
       expect(account.simulate).toBeUndefined()
     })
 
-    test('only operations referenced by registered rules are wrapped', async () => {
+    test('every OPERATIONS method on a governed account is wrapped; unaddressed ops BLOCK', async () => {
       getAccountMock.mockResolvedValue(buildAccount())
 
       wdk
@@ -438,16 +438,24 @@ describe('WDK — policy engine', () => {
 
       const account = await wdk.getAccount('ethereum', 0)
 
-      // sendTransaction is wrapped → blocked.
+      // sendTransaction is addressed by the rule → DENY by the rule.
       const denied = await catchAsync(() => account.sendTransaction({ to: RECIPIENT, value: 1n }))
       expect(denied.name).toBe('PolicyViolationError')
+      expect(denied.policyId).toBe('only-send')
 
-      // transfer is NOT referenced → passthrough returns the underlying mock value.
-      const result = await account.transfer({ token: TOKEN, recipient: RECIPIENT, amount: 1n })
-      expect(result.hash).toBe(DUMMY_TRANSFER_HASH)
+      // transfer is also wrapped (full OPERATIONS coverage on governed accounts);
+      // no rule addresses it → BLOCK with `no-applicable-rule`. This is the
+      // default-deny semantic that closes the sibling-method bypass: a
+      // "cap transfer" policy cannot be sidestepped by calling sendTransaction
+      // with ERC-20 calldata, signTypedData for a Permit, etc.
+      const transferErr = await catchAsync(() => account.transfer({ token: TOKEN, recipient: RECIPIENT, amount: 1n }))
+      expect(transferErr.name).toBe('PolicyViolationError')
+      expect(transferErr.reason).toBe('no-applicable-rule')
+      expect(transferMock).not.toHaveBeenCalled()
 
-      // simulate mirror only contains the wrapped op.
-      expect(account.simulate.transfer).toBeUndefined()
+      // simulate mirrors every wrapped op.
+      expect(account.simulate.sendTransaction).not.toBeUndefined()
+      expect(account.simulate.transfer).not.toBeUndefined()
     })
 
     test('read-only methods (getBalance, quoteTransfer) are not wrapped or mirrored in simulate', async () => {
@@ -578,6 +586,121 @@ describe('WDK — policy engine', () => {
   })
 
   // -------------------------------------------------------------------------
+  // Default-deny: sibling-method bypass coverage
+  //
+  // A policy that names one money-movement op must not be sidesteppable by
+  // calling a different op that moves the same value (ERC-20 transfer via
+  // sendTransaction calldata, signTypedData for Permit, delegate for 7702,
+  // etc.). The engine default-denies any unaddressed op on a governed account.
+  // -------------------------------------------------------------------------
+
+  describe('default-deny: sibling-method bypass coverage', () => {
+    test('a "cap transfer" policy also blocks sendTransaction (same funds via raw calldata)', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'cap-transfer',
+          name: 'cap-transfer',
+          scope: 'project',
+          rules: [{
+            name: 'cap',
+            operation: 'transfer',
+            action: 'ALLOW',
+            conditions: [({ params }) => BigInt(params.amount) <= 100n]
+          }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      // Attacker tries to move tokens via the underlying-tx path instead of `transfer`.
+      const err = await catchAsync(() => account.sendTransaction({ to: TOKEN, value: 0n, data: '0xa9059cbb...' }))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.reason).toBe('no-applicable-rule')
+      expect(sendTransactionMock).not.toHaveBeenCalled()
+    })
+
+    test('a "cap transfer" policy also blocks approve (spender pulls)', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'cap-transfer',
+          name: 'cap-transfer',
+          scope: 'project',
+          rules: [{ name: 'cap', operation: 'transfer', action: 'ALLOW', conditions: [() => true] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      const err = await catchAsync(() => account.approve({ token: TOKEN, spender: SPENDER, amount: 1n }))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.reason).toBe('no-applicable-rule')
+      expect(approveMock).not.toHaveBeenCalled()
+    })
+
+    test('a "cap transfer" policy also blocks signTypedData (off-chain Permit)', async () => {
+      getAccountMock.mockResolvedValue(buildAccount(PATH_DEFAULT, {
+        signTypedData: jest.fn().mockResolvedValue('0xpermit-sig')
+      }))
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'cap-transfer',
+          name: 'cap-transfer',
+          scope: 'project',
+          rules: [{ name: 'cap', operation: 'transfer', action: 'ALLOW', conditions: [() => true] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      const err = await catchAsync(() => account.signTypedData({ domain: {}, types: {}, message: {} }))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.reason).toBe('no-applicable-rule')
+    })
+
+    test('a "cap transfer" policy also blocks delegate (ERC-7702 EOA delegation)', async () => {
+      getAccountMock.mockResolvedValue(buildAccount(PATH_DEFAULT, {
+        delegate: jest.fn().mockResolvedValue({ hash: '0xdummy-delegate-hash' })
+      }))
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'cap-transfer',
+          name: 'cap-transfer',
+          scope: 'project',
+          rules: [{ name: 'cap', operation: 'transfer', action: 'ALLOW', conditions: [() => true] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+      const err = await catchAsync(() => account.delegate('0xdelegate'))
+
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.reason).toBe('no-applicable-rule')
+    })
+
+    test('an account with no policies is not governed; the proxy is not even applied', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk.registerWallet('ethereum', WalletManagerMock, {})
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      // No proxy → no enforcement → sibling-method semantics unchanged for
+      // ungoverned accounts. This preserves the zero-cost path when no
+      // consumer cares about policies.
+      expect(account.simulate).toBeUndefined()
+
+      const result = await account.transfer({ token: TOKEN, recipient: RECIPIENT, amount: 1n })
+      expect(result.hash).toBe(DUMMY_TRANSFER_HASH)
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // PolicyViolationError shape
   // -------------------------------------------------------------------------
 
@@ -679,9 +802,42 @@ describe('WDK — policy engine', () => {
         })
 
       const account = await wdk.getAccount('ethereum', 0)
-      const result = await account.sign('hello')
+      const err = await catchAsync(() => account.sign('hello'))
 
-      expect(result).toBe(DUMMY_SIGNATURE)
+      // sign is in OPERATIONS but no rule addresses it → BLOCK with
+      // `no-applicable-rule` (the default-deny semantic, not the old default-allow).
+      expect(err.name).toBe('PolicyViolationError')
+      expect(err.reason).toBe('no-applicable-rule')
+      expect(signMock).not.toHaveBeenCalled()
+    })
+
+    test('a wildcard ALLOW rule re-enables permissive semantics (opt-out for default-deny)', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'permissive-baseline',
+          name: 'permissive-baseline',
+          scope: 'project',
+          rules: [
+            { name: 'allow-all', operation: '*', action: 'ALLOW', conditions: [] },
+            { name: 'block-send', operation: 'sendTransaction', action: 'DENY', conditions: [] }
+          ]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      // sendTransaction blocked by the DENY rule (DENY wins over wildcard ALLOW within a policy)
+      const sendErr = await catchAsync(() => account.sendTransaction({ to: RECIPIENT, value: 1n }))
+      expect(sendErr.reason).toBe('block-send')
+
+      // sign and transfer are caught by wildcard ALLOW → pass through
+      const sig = await account.sign('hello')
+      expect(sig).toBe(DUMMY_SIGNATURE)
+
+      const transferResult = await account.transfer({ token: TOKEN, recipient: RECIPIENT, amount: 1n })
+      expect(transferResult.hash).toBe(DUMMY_TRANSFER_HASH)
     })
 
     test('project ALLOW with conditions true permits the operation', async () => {
@@ -750,9 +906,9 @@ describe('WDK — policy engine', () => {
       expect(transferErr.name).toBe('PolicyViolationError')
       expect(transferErr.ruleName).toBe('deny-pair')
 
-      // sign is not in the array → passthrough.
-      const sig = await account.sign('hi')
-      expect(sig).toBe(DUMMY_SIGNATURE)
+      // sign is in OPERATIONS but not addressed by any rule → BLOCK with no-applicable-rule.
+      const sigErr = await catchAsync(() => account.sign('hi'))
+      expect(sigErr.reason).toBe('no-applicable-rule')
     })
 
     test('the wildcard * matches any operation', async () => {
@@ -1136,7 +1292,7 @@ describe('WDK — policy engine', () => {
       expect(sendTransactionMock).not.toHaveBeenCalled()
     })
 
-    test('simulate result for a not-governed operation has decision=ALLOW with reason=not-governed', async () => {
+    test('simulate.<op> on an unaddressed op returns DENY with no-applicable-rule', async () => {
       getAccountMock.mockResolvedValue(buildAccount())
 
       wdk
@@ -1144,11 +1300,19 @@ describe('WDK — policy engine', () => {
         .registerPolicy(projectAllowAll('only-send'))
 
       const account = await wdk.getAccount('ethereum', 0)
-      // simulate is only built for wrapped methods; sign is not wrapped.
-      expect(account.simulate.sign).toBeUndefined()
 
-      // A wrapped op with no matching rule case is shown above; this asserts the simulate mirror only contains wrapped ops.
+      // Every OPERATIONS method present on the account is mirrored on
+      // governed accounts — including sign, transfer, etc.
+      expect(account.simulate.sign).not.toBeUndefined()
       expect(account.simulate.sendTransaction).not.toBeUndefined()
+
+      // Unaddressed op via simulate → DENY with no-applicable-rule.
+      const sim = await account.simulate.sign('hello')
+      expect(sim.decision).toBe('DENY')
+      expect(sim.policy_id).toBeNull()
+      expect(sim.matched_rule).toBeNull()
+      expect(sim.reason).toBe('no-applicable-rule')
+      expect(signMock).not.toHaveBeenCalled()
     })
   })
 

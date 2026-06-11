@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { PROTOCOL_METHODS } from './constants.js'
+import { OPERATIONS, PROTOCOL_METHODS } from './constants.js'
 import { buildContext } from './policy-context.js'
 import PolicyViolationError, { PolicyConfigurationError } from './policy-error.js'
 
@@ -64,9 +64,7 @@ const PROTOCOL_GETTERS = [
  * @throws {PolicyConfigurationError} If at least one policy applies but the underlying account does not implement `toReadOnlyAccount()`.
  */
 export async function createPolicyEnforcedAccount (account, { blockchain, path, index, engine }) {
-  const relevantOps = engine._relevantOperations(blockchain, path, index)
-
-  if (relevantOps.size === 0) return account
+  if (!engine._isGoverned(blockchain, path, index)) return account
 
   if (typeof account.toReadOnlyAccount !== 'function') {
     throw new PolicyConfigurationError(
@@ -80,7 +78,13 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
 
   const enforcedMethods = new Map()
 
-  for (const op of relevantOps) {
+  // Wrap every method in OPERATIONS that exists on the underlying account,
+  // not just the ones referenced by registered policies. The evaluator
+  // default-denies any operation no rule addresses — without wrapping the
+  // full set we'd leave sibling methods un-intercepted (e.g. a 'cap transfer'
+  // policy would not prevent `sendTransaction({ to: token, data: ... })`
+  // from moving the same tokens).
+  for (const op of OPERATIONS) {
     if (typeof account[op] === 'function') {
       enforcedMethods.set(op, buildEnforcedMethod(op, account[op].bind(account), ctx))
     }
@@ -92,16 +96,12 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
     if (typeof account[getterName] !== 'function') continue
 
     const writeMethods = PROTOCOL_METHODS[type]
-    const opsToWrap = writeMethods.filter((m) => relevantOps.has(m))
-
-    if (opsToWrap.length === 0) continue
-
     const originalGetter = account[getterName].bind(account)
 
     enforcedGetters.set(getterName, (label) => {
       const protocol = originalGetter(label)
 
-      return wrapProtocolInProxy(protocol, opsToWrap, ctx)
+      return wrapProtocolInProxy(protocol, writeMethods, ctx)
     })
   }
 
