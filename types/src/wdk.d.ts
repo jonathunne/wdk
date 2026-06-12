@@ -1,3 +1,16 @@
+/** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
+/** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
+/** @typedef {import('./wallet-account-with-protocols.js').IWalletAccountWithProtocols} IWalletAccountWithProtocols */
+/** @typedef {<A extends IWalletAccount>(account: A) => Promise<void>} MiddlewareFunction */
+/** @typedef {import('./policy/policy-engine.js').Policy} Policy */
+/** @typedef {import('./policy/policy-engine.js').PolicyRule} PolicyRule */
+/** @typedef {import('./policy/policy-engine.js').PolicyCondition} PolicyCondition */
+/** @typedef {import('./policy/policy-engine.js').PolicyContext} PolicyContext */
+/** @typedef {import('./policy/policy-engine.js').PolicyAction} PolicyAction */
+/** @typedef {import('./policy/policy-engine.js').PolicyScope} PolicyScope */
+/** @typedef {import('./policy/policy-engine.js').PolicyOperation} PolicyOperation */
+/** @typedef {import('./policy/policy-engine.js').SimulationResult} SimulationResult */
+/** @typedef {import('./policy/policy-engine.js').RegisterPolicyOptions} RegisterPolicyOptions */
 export default class WDK {
     /**
      * Returns a random BIP-39 seed phrase.
@@ -28,6 +41,10 @@ export default class WDK {
     private _protocols;
     /** @private */
     private _middlewares;
+    /** @private */
+    private _policyEngine;
+    /** @private */
+    private _decoratedAccounts;
     /**
      * Registers a new wallet to the WDK.
      *
@@ -36,8 +53,9 @@ export default class WDK {
      * @param {W} WalletManager - The wallet manager class.
      * @param {ConstructorParameters<W>[1]} config - The configuration object.
      * @returns {WDK} The WDK.
+     * @throws {Error} If a wallet is already registered for the given blockchain.
      */
-    registerWallet<W extends typeof WalletManager>(blockchain: string, WalletManager: W, config: ConstructorParameters<W>[1]): WDK;
+    registerWallet<W extends typeof import("@tetherto/wdk-wallet").default>(blockchain: string, WalletManager: W, config: ConstructorParameters<W>[1]): WDK;
     /**
      * Registers a new protocol to the WDK.
      *
@@ -64,12 +82,33 @@ export default class WDK {
      */
     registerMiddleware(blockchain: string, middleware: MiddlewareFunction): WDK;
     /**
+     * Registers one or more transaction policies that will be evaluated before
+     * any wrapped account or protocol method is allowed to execute.
+     *
+     * Each policy's `wallet` field (optional for `scope: 'project'`, required
+     * for `scope: 'account'`) declares which wallet identifier(s) it binds to.
+     * A wallet identifier is the same string passed to `registerWallet` — it
+     * might be a chain name like `"ethereum"`, but it could equally be
+     * `"treasury-cold"` or any label the consumer chose. Omitting `wallet` on
+     * a project-scope policy applies it across every registered wallet.
+     *
+     * Multiple `registerPolicy` calls stack. If a policy with the same id is
+     * registered twice into the same binding, the second call replaces the first.
+     *
+     * @param {Policy | Policy[]} policies - A single policy or array of policies to register on this WDK instance.
+     * @param {RegisterPolicyOptions} [options] - Engine-level settings such as `conditionTimeoutMs`. The most recent call's value wins.
+     * @returns {WDK} The same WDK instance, for chaining.
+     * @throws {PolicyConfigurationError} If any policy or option fails validation, or a policy binds to a wallet identifier not previously passed to `registerWallet`.
+     */
+    registerPolicy(policies: Policy | Policy[], options?: RegisterPolicyOptions): WDK;
+    /**
      * Returns the wallet account for a specific blockchain and index (see BIP-44).
      *
      * @param {string} blockchain - The name of the blockchain (e.g., "ethereum").
      * @param {number} [index] - The index of the account to get (default: 0).
-     * @returns {Promise<IWalletAccountWithProtocols>} The account.
+     * @returns {Promise<IWalletAccountWithProtocols>} The account. When at least one registered policy targets this account, the returned object is a Proxy that throws `PolicyViolationError` from any wrapped write method whose policy evaluation yields a DENY.
      * @throws {Error} If no wallet has been registered for the given blockchain.
+     * @throws {PolicyConfigurationError} If a registered policy applies but the underlying wallet account does not implement `toReadOnlyAccount()`.
      */
     getAccount(blockchain: string, index?: number): Promise<IWalletAccountWithProtocols>;
     /**
@@ -77,8 +116,9 @@ export default class WDK {
      *
      * @param {string} blockchain - The name of the blockchain (e.g., "ethereum").
      * @param {string} path - The derivation path (e.g., "0'/0/0").
-     * @returns {Promise<IWalletAccountWithProtocols>} The account.
+     * @returns {Promise<IWalletAccountWithProtocols>} The account. When at least one registered policy targets this account, the returned object is a Proxy that throws `PolicyViolationError` from any wrapped write method whose policy evaluation yields a DENY.
      * @throws {Error} If no wallet has been registered for the given blockchain.
+     * @throws {PolicyConfigurationError} If a registered policy applies but the underlying wallet account does not implement `toReadOnlyAccount()`.
      */
     getAccountByPath(blockchain: string, path: string): Promise<IWalletAccountWithProtocols>;
     /**
@@ -90,11 +130,13 @@ export default class WDK {
      */
     getFeeRates(blockchain: string): Promise<FeeRates>;
     /**
-    * Disposes and unregisters wallets, erasing any sensitive data from memory.
-    * If no blockchains are specified, all registered wallets are disposed.
-    * @param {string[]} [blockchains] - The blockchains to dispose. If omitted, all wallets are disposed.
-    */
+     * Disposes and unregisters wallets, erasing any sensitive data from memory.
+     * If no blockchains are specified, all registered wallets are disposed.
+     * @param {string[]} [blockchains] - The blockchains to dispose. If omitted, all wallets are disposed.
+     */
     dispose(blockchains?: string[]): void;
+    /** @private */
+    private _applyPolicies;
     /** @private */
     private _runMiddlewares;
     /** @private */
@@ -104,9 +146,17 @@ export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type IWalletAccountWithProtocols = import("./wallet-account-with-protocols.js").IWalletAccountWithProtocols;
 export type MiddlewareFunction = <A extends IWalletAccount>(account: A) => Promise<void>;
-import WalletManager from "@tetherto/wdk-wallet";
-import { SwapProtocol } from "@tetherto/wdk-wallet/protocols";
-import { BridgeProtocol } from "@tetherto/wdk-wallet/protocols";
-import { LendingProtocol } from "@tetherto/wdk-wallet/protocols";
-import { FiatProtocol } from "@tetherto/wdk-wallet/protocols";
-import { SwidgeProtocol } from "@tetherto/wdk-wallet/protocols";
+export type Policy = import("./policy/policy-engine.js").Policy;
+export type PolicyRule = import("./policy/policy-engine.js").PolicyRule;
+export type PolicyCondition = import("./policy/policy-engine.js").PolicyCondition;
+export type PolicyContext = import("./policy/policy-engine.js").PolicyContext;
+export type PolicyAction = import("./policy/policy-engine.js").PolicyAction;
+export type PolicyScope = import("./policy/policy-engine.js").PolicyScope;
+export type PolicyOperation = import("./policy/policy-engine.js").PolicyOperation;
+export type SimulationResult = import("./policy/policy-engine.js").SimulationResult;
+export type RegisterPolicyOptions = import("./policy/policy-engine.js").RegisterPolicyOptions;
+import { SwapProtocol } from '@tetherto/wdk-wallet/protocols';
+import { BridgeProtocol } from '@tetherto/wdk-wallet/protocols';
+import { LendingProtocol } from '@tetherto/wdk-wallet/protocols';
+import { FiatProtocol } from '@tetherto/wdk-wallet/protocols';
+import { SwidgeProtocol } from '@tetherto/wdk-wallet/protocols';

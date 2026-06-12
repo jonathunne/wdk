@@ -57,8 +57,73 @@ wdk.dispose()
 - **Multi-Chain Operations**: Coordinate balances, fee lookups, and transaction flows across registered chains
 - **Protocol Registration Support**: Attach swap, bridge, lending, fiat, and swidge protocols to registered blockchains
 - **Middleware Hooks**: Intercept account derivation with custom middleware
+- **Transaction Policies**: Local policy engine that intercepts write-facing operations and enforces user-defined ALLOW/DENY rules at project (global or wallet-bound) and account scopes — with simulation, nested-call handling, and structured `PolicyViolationError`s
 - **Seed Utilities**: Generate and validate BIP-39 seed phrases
 - **Selective Disposal**: Dispose specific registered wallets or clear the full WDK instance
+
+## Transaction Policies
+
+Register policies on a `WDK` instance to gate write-facing operations on every wallet account. Each registered rule can `ALLOW` or `DENY` an attempted operation based on a condition function; matching `DENY`s throw a `PolicyViolationError` before the underlying method runs.
+
+```javascript
+import WDK, { PolicyViolationError } from '@tetherto/wdk'
+import WalletManagerEvm from '@tetherto/wdk-wallet-evm'
+
+const wdk = new WDK(seedPhrase)
+  .registerWallet('ethereum', WalletManagerEvm, { provider: '...' })
+  .registerPolicy({
+    id: 'value-cap',
+    name: 'Cap value at 1 ETH',
+    scope: 'project',
+    rules: [{
+      name: 'allow-under-1-eth',
+      operation: 'sendTransaction',
+      action: 'ALLOW',
+      conditions: [({ params }) => BigInt(params.value) <= 10n ** 18n]
+    }]
+  })
+
+const account = await wdk.getAccount('ethereum', 0)
+
+try {
+  await account.sendTransaction({ to: '0x…', value: 5n * 10n ** 18n })
+} catch (err) {
+  if (err instanceof PolicyViolationError) {
+    console.log(err.policyId, err.ruleName, err.reason)
+  }
+}
+
+// Run the same evaluation without executing the transaction.
+const result = await account.simulate.sendTransaction({ to: '0x…', value: 1n })
+// → { decision: 'ALLOW' | 'DENY', policy_id, matched_rule, reason, trace }
+```
+
+Policies have two scopes — `project` and `account`. A project-scope policy applies globally by default, or only to the wallets named in its `wallet` field (`wallet: 'ethereum'` or `wallet: ['ethereum', 'ton']`). The `wallet` value is the same string passed to `registerWallet`. It might be a chain name like `"ethereum"`, but it could equally be `"treasury-cold"` or any label the consumer chose; the engine treats it as an opaque key. An account-scope policy must declare a `wallet` and targets specific accounts within it, identified by either derivation path (`accounts: ["0'/0/0"]`) or integer index (`accounts: [0, 1]`) — index entries match accounts retrieved via `wdk.getAccount(wallet, index)`; path entries match either retrieval style. Evaluation is narrowest-first with `DENY` winning across scopes. Account-scope `ALLOW` rules can opt into `override_broader_scope: true` to short-circuit broader policies for explicit exceptions (e.g., treasury accounts). Conditions can be sync or async and may carry user-owned state via closures. Templates (`@tetherto/wdk-policy-templates`) and a portal UI for editing policies are coming in later phases.
+
+### Default-deny semantics
+
+The engine is **default-deny on governed accounts**. As soon as any policy applies to an account, the engine wraps every method in `OPERATIONS` (the set of write-facing and signing primitives — `sendTransaction`, `signTransaction`, `transfer`, `approve`, `sign`, `signTypedData`, `signAuthorization`, `delegate`, `revokeDelegation`, and protocol methods like `swap`, `bridge`, `swidge`, etc.) on that account. Any call to a wrapped method whose operation is not addressed by an `ALLOW` rule throws `PolicyViolationError` with `reason: 'no-applicable-rule'`.
+
+This is intentional: a "cap transfer at $100" policy must not be sidesteppable by `sendTransaction({ to: token, data: <ERC-20 transfer calldata> })`, `approve(spender, MAX)`, an off-chain `signTypedData` Permit, or an ERC-7702 `delegate` to an attacker contract. The engine closes those bypasses by treating any unaddressed money-movement op on a governed account as DENY.
+
+If you want permissive semantics on a specific account (allow anything that isn't explicitly denied), register a wildcard ALLOW rule as a baseline and layer specific DENYs on top:
+
+```javascript
+wdk.registerPolicy({
+  id: 'permissive-baseline',
+  scope: 'project',
+  rules: [
+    { name: 'allow-all', operation: '*', action: 'ALLOW', conditions: [] },
+    { name: 'block-bad', operation: 'sendTransaction', action: 'DENY', conditions: [({ params }) => isSanctioned(params.to)] }
+  ]
+})
+```
+
+Accounts that have **no** registered policies are not governed — the proxy is not applied, and method calls go straight to the underlying account at zero cost.
+
+The engine wraps accounts through an ES `Proxy` so internal SDK code that uses `this.method()` naturally bypasses enforcement — nested-call escape (e.g. `bridge` internally calling `sendTransaction`) works without any async-context tracking. The same code path runs on every JavaScript runtime that supports `Proxy`, including Bare.
+
+Policy enforcement applies to the **surface of the proxy** returned by `getAccount` / `getAccountByPath`. Reaching for underscore-prefixed fields (e.g. `protocol._account`) bypasses enforcement by design — treat them as private. The same applies to account-level operations invoked from inside a protocol's own methods (e.g. `bridge.bridge(...)` internally calling `this._account.sendTransaction(...)`), which is the documented nested-call escape; it lets protocols use the account they were constructed with without re-entering the engine on every internal step.
 
 ## Compatibility
 
