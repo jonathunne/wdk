@@ -156,8 +156,9 @@ function buildEnforcedMethod (name, boundOriginal, ctx) {
     // have the wallet receive different values than the policy approved
     // (time-of-check / time-of-use). The snapshot is taken independently of
     // the one inside buildContext, so a condition function also cannot mutate
-    // its way into the executed call. See snapshotArgs for cloning semantics.
-    const forwardedArgs = snapshotArgs(args)
+    // its way into the executed call. A non-cloneable argument fails closed
+    // here (see snapshotArgs) rather than being forwarded un-snapshotted.
+    const forwardedArgs = snapshotArgs(args, name)
 
     const context = buildContext({
       operation: name,

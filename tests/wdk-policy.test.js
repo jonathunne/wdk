@@ -1548,6 +1548,27 @@ describe('WDK — policy engine', () => {
       expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
       expect(tx.to).toBe(RECIPIENT) // caller's object also unchanged
     })
+
+    test('a non-cloneable governed argument fails closed instead of forwarding a shared reference', async () => {
+      // A value structuredClone cannot serialize would otherwise reach the
+      // wallet as a shared mutable reference, re-opening the TOCTOU gap. The
+      // engine must refuse the call rather than forward it un-snapshotted.
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy(projectAllowAll('p'))
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      const tx = { to: RECIPIENT, value: 1n, onSettled: () => {} } // function → not cloneable
+      const err = await catchAsync(() => account.sendTransaction(tx))
+
+      expect(err.name).toBe('PolicyConfigurationError')
+      expect(err.message).toMatch(/not structured-cloneable/)
+      expect(err.message).toMatch(/sendTransaction/)
+      expect(sendTransactionMock).not.toHaveBeenCalled()
+    })
   })
 
   // -------------------------------------------------------------------------
