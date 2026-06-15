@@ -15,7 +15,7 @@
 'use strict'
 
 import { OPERATIONS, PROTOCOL_METHODS } from './constants.js'
-import { buildContext } from './policy-context.js'
+import { buildContext, snapshotArgs } from './policy-context.js'
 import PolicyViolationError, { PolicyConfigurationError } from './policy-error.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
@@ -150,6 +150,15 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
 
 function buildEnforcedMethod (name, boundOriginal, ctx) {
   return async function policyEnforced (...args) {
+    // Snapshot the arguments up front and forward *this* copy to the
+    // underlying method. Policy evaluation below is awaited, so a caller that
+    // mutates the original argument objects across that await could otherwise
+    // have the wallet receive different values than the policy approved
+    // (time-of-check / time-of-use). The snapshot is taken independently of
+    // the one inside buildContext, so a condition function also cannot mutate
+    // its way into the executed call. See snapshotArgs for cloning semantics.
+    const forwardedArgs = snapshotArgs(args)
+
     const context = buildContext({
       operation: name,
       wallet: ctx.blockchain,
@@ -167,7 +176,7 @@ function buildEnforcedMethod (name, boundOriginal, ctx) {
       })
     }
 
-    return boundOriginal(...args)
+    return boundOriginal(...forwardedArgs)
   }
 }
 

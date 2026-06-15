@@ -1489,6 +1489,40 @@ describe('WDK — policy engine', () => {
       expect(observedTo).toBe(RECIPIENT)
     })
 
+    test('mutating the tx after the call starts does not change what the wallet receives', async () => {
+      // Reproduces the TOCTOU report: a slow async condition keeps the call
+      // pending while the caller swaps `to`/`value` on the original object
+      // after the policy approved the original values. The wallet must receive
+      // the approved snapshot, not the mutated object.
+      const condition = jest.fn(async ({ params }) => {
+        await new Promise((resolve) => setTimeout(resolve, 30))
+        return params.to === RECIPIENT && params.value <= 5n
+      })
+
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'safe-recipient',
+          name: 'safe-recipient',
+          scope: 'project',
+          rules: [{ name: 'r', operation: 'sendTransaction', action: 'ALLOW', conditions: [condition] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      const tx = { to: RECIPIENT, value: 1n }
+      const callPromise = account.sendTransaction(tx)
+
+      tx.to = SANCTIONED // caller mutates after the snapshot is taken
+      tx.value = 1_000_000_000_000_000_000n
+
+      await callPromise
+
+      expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
+    })
+
     test('a condition function cannot mutate its way into the underlying call', async () => {
       const condition = jest.fn(({ params }) => {
         params.to = SANCTIONED // mutation should not propagate
