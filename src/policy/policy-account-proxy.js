@@ -150,22 +150,6 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
 
 function buildEnforcedMethod (name, boundOriginal, ctx) {
   return async function policyEnforced (...args) {
-    // Snapshot the caller's arguments exactly once, up front, and treat that
-    // snapshot as the single source of truth: it is what we forward to the
-    // underlying method, and the condition context below is derived from it
-    // too. This matters for three reasons:
-    //   - Policy evaluation is awaited, so a caller that mutates the original
-    //     objects across that await must not change what reaches the wallet
-    //     (time-of-check / time-of-use).
-    //   - Reading the originals a second time to build the context could
-    //     observe *different* values (e.g. a getter/Proxy that returns a safe
-    //     value on first read and a malicious one on the next), splitting what
-    //     the policy checked from what executes. Cloning the already-captured
-    //     snapshot — plain data, no live accessors — avoids that.
-    //   - buildContext clones again, so the context the conditions see is
-    //     independent from forwardedArgs: a condition cannot mutate its way
-    //     into the executed call.
-    // A non-cloneable argument fails closed here (see snapshotArgs).
     const forwardedArgs = snapshotArgs(args, name)
 
     const context = buildContext({

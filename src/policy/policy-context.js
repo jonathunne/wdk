@@ -91,10 +91,6 @@ function snapshot (value, operation, index) {
   try {
     return structuredClone(value)
   } catch (err) {
-    // structuredClone throws DOMException(name: 'DataCloneError') for values
-    // it can't serialize (functions, class instances with non-cloneable
-    // internals, etc.). Fail closed rather than forward an un-snapshotted
-    // reference; rethrow anything else so real bugs surface.
     if (err.name === 'DataCloneError') {
       const where = operation ? ` of governed operation '${operation}'` : ''
 

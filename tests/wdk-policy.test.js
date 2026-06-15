@@ -1457,8 +1457,6 @@ describe('WDK — policy engine', () => {
   // -------------------------------------------------------------------------
 
   describe('context immutability', () => {
-    // Over the policy's value limit; what an attacker tries to slip past a
-    // check that already approved a smaller amount.
     const ATTACKER_VALUE = 1_000_000_000_000_000_000n
 
     test('mutating the params object after the call starts does not change what conditions saw', async () => {
@@ -1494,10 +1492,6 @@ describe('WDK — policy engine', () => {
     })
 
     test('mutating the tx after the call starts does not change what the wallet receives', async () => {
-      // Reproduces the TOCTOU report: a slow async condition keeps the call
-      // pending while the caller swaps `to`/`value` on the original object
-      // after the policy approved the original values. The wallet must receive
-      // the approved snapshot, not the mutated object.
       const condition = jest.fn(async ({ params }) => {
         await new Promise((resolve) => setTimeout(resolve, 30))
         return params.to === RECIPIENT && params.value <= 5n
@@ -1519,7 +1513,7 @@ describe('WDK — policy engine', () => {
       const tx = { to: RECIPIENT, value: 1n }
       const callPromise = account.sendTransaction(tx)
 
-      tx.to = SANCTIONED // caller mutates after the snapshot is taken
+      tx.to = SANCTIONED
       tx.value = ATTACKER_VALUE
 
       await callPromise
@@ -1528,10 +1522,6 @@ describe('WDK — policy engine', () => {
     })
 
     test('an argument whose getter returns different values per read cannot split the check from execution', async () => {
-      // A getter that flips its return on the second read could show the policy
-      // one value while the wallet executes another, unless the engine reads
-      // the caller's args exactly once. Capture what the condition evaluated
-      // and assert the wallet received that same value.
       let evaluatedValue
       const condition = jest.fn(({ params }) => {
         evaluatedValue = params.value
@@ -1589,9 +1579,6 @@ describe('WDK — policy engine', () => {
     })
 
     test('a non-cloneable governed argument fails closed instead of forwarding a shared reference', async () => {
-      // A value structuredClone cannot serialize would otherwise reach the
-      // wallet as a shared mutable reference, re-opening the TOCTOU gap. The
-      // engine must refuse the call rather than forward it un-snapshotted.
       getAccountMock.mockResolvedValue(buildAccount())
 
       wdk
@@ -1600,7 +1587,7 @@ describe('WDK — policy engine', () => {
 
       const account = await wdk.getAccount('ethereum', 0)
 
-      const tx = { to: RECIPIENT, value: 1n, onSettled: () => {} } // function → not cloneable
+      const tx = { to: RECIPIENT, value: 1n, onSettled: () => {} }
       const err = await catchAsync(() => account.sendTransaction(tx))
 
       expect(err.name).toBe('PolicyConfigurationError')
