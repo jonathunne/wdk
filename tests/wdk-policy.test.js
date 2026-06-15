@@ -1457,6 +1457,10 @@ describe('WDK — policy engine', () => {
   // -------------------------------------------------------------------------
 
   describe('context immutability', () => {
+    // Over the policy's value limit; what an attacker tries to slip past a
+    // check that already approved a smaller amount.
+    const ATTACKER_VALUE = 1_000_000_000_000_000_000n
+
     test('mutating the params object after the call starts does not change what conditions saw', async () => {
       let observedTo
 
@@ -1516,10 +1520,45 @@ describe('WDK — policy engine', () => {
       const callPromise = account.sendTransaction(tx)
 
       tx.to = SANCTIONED // caller mutates after the snapshot is taken
-      tx.value = 1_000_000_000_000_000_000n
+      tx.value = ATTACKER_VALUE
 
       await callPromise
 
+      expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
+    })
+
+    test('an argument whose getter returns different values per read cannot split the check from execution', async () => {
+      // A getter that flips its return on the second read could show the policy
+      // one value while the wallet executes another, unless the engine reads
+      // the caller's args exactly once. Capture what the condition evaluated
+      // and assert the wallet received that same value.
+      let evaluatedValue
+      const condition = jest.fn(({ params }) => {
+        evaluatedValue = params.value
+        return true
+      })
+
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'capture-value',
+          name: 'capture-value',
+          scope: 'project',
+          rules: [{ name: 'r', operation: 'sendTransaction', action: 'ALLOW', conditions: [condition] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      let reads = 0
+      const tx = {
+        to: RECIPIENT,
+        get value () { reads += 1; return reads === 1 ? 1n : ATTACKER_VALUE }
+      }
+      await account.sendTransaction(tx)
+
+      expect(evaluatedValue).toBe(1n)
       expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
     })
 
@@ -1565,8 +1604,12 @@ describe('WDK — policy engine', () => {
       const err = await catchAsync(() => account.sendTransaction(tx))
 
       expect(err.name).toBe('PolicyConfigurationError')
-      expect(err.message).toMatch(/not structured-cloneable/)
-      expect(err.message).toMatch(/sendTransaction/)
+      expect(err.message).toBe(
+        "policy engine cannot snapshot argument 0 of governed operation 'sendTransaction': value is not " +
+        'structured-cloneable. Governed operations require cloneable arguments so the engine can evaluate ' +
+        'and forward the exact values it approved (preventing time-of-check / time-of-use mutation). ' +
+        'Pass a plain, cloneable argument instead.'
+      )
       expect(sendTransactionMock).not.toHaveBeenCalled()
     })
   })
