@@ -15,7 +15,7 @@
 'use strict'
 
 import { OPERATIONS, PROTOCOL_METHODS } from './constants.js'
-import { buildContext } from './policy-context.js'
+import { buildContext, snapshotArgs } from './policy-context.js'
 import PolicyViolationError, { PolicyConfigurationError } from './policy-error.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
@@ -150,11 +150,13 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
 
 function buildEnforcedMethod (name, boundOriginal, ctx) {
   return async function policyEnforced (...args) {
+    const forwardedArgs = snapshotArgs(args, name)
+
     const context = buildContext({
       operation: name,
       wallet: ctx.blockchain,
       account: ctx.readOnlyAccount,
-      args
+      args: forwardedArgs
     })
 
     const verdict = await ctx.engine._evaluateContext(context, { path: ctx.account.path, index: ctx.index })
@@ -167,7 +169,7 @@ function buildEnforcedMethod (name, boundOriginal, ctx) {
       })
     }
 
-    return boundOriginal(...args)
+    return boundOriginal(...forwardedArgs)
   }
 }
 

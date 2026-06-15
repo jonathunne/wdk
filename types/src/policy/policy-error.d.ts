@@ -35,7 +35,10 @@ export default class PolicyViolationError extends Error {
     #private;
 }
 /**
- * Error type produced by the policy engine for invalid registration inputs.
+ * Error type produced by the policy engine when it cannot safely operate:
+ * invalid registration inputs, a governed wallet that doesn't implement the
+ * required read-only interface, or a governed call whose arguments cannot be
+ * snapshotted (not structured-cloneable).
  */
 export class PolicyConfigurationError extends Error {
     /**

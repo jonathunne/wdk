@@ -1457,6 +1457,8 @@ describe('WDK — policy engine', () => {
   // -------------------------------------------------------------------------
 
   describe('context immutability', () => {
+    const ATTACKER_VALUE = 1_000_000_000_000_000_000n
+
     test('mutating the params object after the call starts does not change what conditions saw', async () => {
       let observedTo
 
@@ -1489,6 +1491,67 @@ describe('WDK — policy engine', () => {
       expect(observedTo).toBe(RECIPIENT)
     })
 
+    test('mutating the tx after the call starts does not change what the wallet receives', async () => {
+      const condition = jest.fn(async ({ params }) => {
+        await new Promise((resolve) => setTimeout(resolve, 30))
+        return params.to === RECIPIENT && params.value <= 5n
+      })
+
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'safe-recipient',
+          name: 'safe-recipient',
+          scope: 'project',
+          rules: [{ name: 'r', operation: 'sendTransaction', action: 'ALLOW', conditions: [condition] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      const tx = { to: RECIPIENT, value: 1n }
+      const callPromise = account.sendTransaction(tx)
+
+      tx.to = SANCTIONED
+      tx.value = ATTACKER_VALUE
+
+      await callPromise
+
+      expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
+    })
+
+    test('an argument whose getter returns different values per read cannot split the check from execution', async () => {
+      let evaluatedValue
+      const condition = jest.fn(({ params }) => {
+        evaluatedValue = params.value
+        return true
+      })
+
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy({
+          id: 'capture-value',
+          name: 'capture-value',
+          scope: 'project',
+          rules: [{ name: 'r', operation: 'sendTransaction', action: 'ALLOW', conditions: [condition] }]
+        })
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      let reads = 0
+      const tx = {
+        to: RECIPIENT,
+        get value () { reads += 1; return reads === 1 ? 1n : ATTACKER_VALUE }
+      }
+      await account.sendTransaction(tx)
+
+      expect(evaluatedValue).toBe(1n)
+      expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
+    })
+
     test('a condition function cannot mutate its way into the underlying call', async () => {
       const condition = jest.fn(({ params }) => {
         params.to = SANCTIONED // mutation should not propagate
@@ -1513,6 +1576,28 @@ describe('WDK — policy engine', () => {
 
       expect(sendTransactionMock).toHaveBeenCalledWith({ to: RECIPIENT, value: 1n })
       expect(tx.to).toBe(RECIPIENT) // caller's object also unchanged
+    })
+
+    test('a non-cloneable governed argument fails closed instead of forwarding a shared reference', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerPolicy(projectAllowAll('p'))
+
+      const account = await wdk.getAccount('ethereum', 0)
+
+      const tx = { to: RECIPIENT, value: 1n, onSettled: () => {} }
+      const err = await catchAsync(() => account.sendTransaction(tx))
+
+      expect(err.name).toBe('PolicyConfigurationError')
+      expect(err.message).toBe(
+        "policy engine cannot snapshot argument 0 of governed operation 'sendTransaction': value is not " +
+        'structured-cloneable. Governed operations require cloneable arguments so the engine can evaluate ' +
+        'and forward the exact values it approved (preventing time-of-check / time-of-use mutation). ' +
+        'Pass a plain, cloneable argument instead.'
+      )
+      expect(sendTransactionMock).not.toHaveBeenCalled()
     })
   })
 
