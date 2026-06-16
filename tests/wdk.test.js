@@ -39,7 +39,7 @@ describe('WDK', () => {
     }
   }
 
-  const CONFIG = { transferMaxFee: 100 }
+  const CONFIG = { transferMaxFee: 100, transactionMaxFee: 500 }
 
   let wdk
 
