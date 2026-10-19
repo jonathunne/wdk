@@ -3251,8 +3251,6 @@ wdk.registerPolicy({
 
       const account = await governed()
 
-      // A stored callable would be picked up by a trusted wrap-time method and
-      // run raw, so the write is refused rather than governed-on-read.
       expect(() => { account.bypass = function (tx) { return this.sendTransaction(tx) } }).toThrow(TypeError)
       expect(account.bypass).toBeUndefined()
       expect(sendTransactionMock).not.toHaveBeenCalled()
@@ -3335,8 +3333,7 @@ wdk.registerPolicy({
 
       proto.leak = function () { return this.keyPair }
 
-      // The policy allows the call, but `this` is the proxy, so a method bound to
-      // the raw account would have leaked keyPair; here it reads back undefined.
+      // Allowed to run, but bound to the proxy, so keyPair reads back undefined.
       await expect(account.leak()).resolves.toBeUndefined()
     })
 
@@ -3362,6 +3359,30 @@ wdk.registerPolicy({
 
       expect(err).toBeInstanceOf(PolicyViolationError)
       expect(err.operation).toBe('sneak')
+    })
+
+    test('the trusted set is shared per account, so a method middleware reassigns each getAccount() still runs raw for an earlier handle', async () => {
+      const raw = buildAccount()
+      getAccountMock.mockResolvedValue(raw)
+
+      let n = 0
+
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerMiddleware('ethereum', (account) => {
+          // getBalance is an excluded read; give it a fresh identity each time.
+          n += 1
+          account.getBalance = jest.fn().mockResolvedValue(`balance-${n}`)
+        })
+        .registerPolicy(projectDenyAll('deny'))
+
+      const first = await wdk.getAccount('ethereum', 0)
+
+      // Re-runs middleware on the same raw account, swapping getBalance's identity.
+      await wdk.getAccount('ethereum', 0)
+
+      // Shared set: still trusted, runs raw. Per-proxy set: governed, rejects.
+      await expect(first.getBalance()).resolves.toBe('balance-2')
     })
 
     test('the real excluded read still runs raw', async () => {
