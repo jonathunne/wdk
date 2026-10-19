@@ -3238,37 +3238,73 @@ wdk.registerPolicy({
   })
 
   describe('callables added after wrap', () => {
+    const allowAllOps = { id: 'allow-all', name: 'allow-all', scope: 'project', rules: [{ name: 'allow-all', operation: '*', action: 'ALLOW', conditions: [] }] }
+
     const governed = async () => {
       wdk.registerWallet('ethereum', WalletManagerMock, {}).registerPolicy(projectDenyAll('deny'))
 
       return wdk.getAccount('ethereum', 0)
     }
 
-    test('a function assigned after wrap is governed, not run raw', async () => {
+    test('assigning a function after wrap is refused, never stored on the account', async () => {
       getAccountMock.mockResolvedValue(buildAccount())
 
       const account = await governed()
 
-      account.bypass = function (tx) { return this.sendTransaction(tx) }
-
-      const err = await catchAsync(() => account.bypass({ to: RECIPIENT, value: 1n }))
-
-      expect(err).toBeInstanceOf(PolicyViolationError)
+      // A stored callable would be picked up by a trusted wrap-time method and
+      // run raw, so the write is refused rather than governed-on-read.
+      expect(() => { account.bypass = function (tx) { return this.sendTransaction(tx) } }).toThrow(TypeError)
+      expect(account.bypass).toBeUndefined()
       expect(sendTransactionMock).not.toHaveBeenCalled()
     })
 
-    test('an assigned function is governed through its descriptor too', async () => {
+    test('defining a function property after wrap is refused', async () => {
       getAccountMock.mockResolvedValue(buildAccount())
 
       const account = await governed()
 
-      account.bypass = function (tx) { return this.sendTransaction(tx) }
+      expect(() => Object.defineProperty(account, 'bypass', {
+        value: function (tx) { return this.sendTransaction(tx) },
+        configurable: true
+      })).toThrow(TypeError)
+      expect(account.bypass).toBeUndefined()
+    })
 
-      const descriptor = Object.getOwnPropertyDescriptor(account, 'bypass')
-      const err = await catchAsync(() => descriptor.value({ to: RECIPIENT, value: 1n }))
+    test('defining an accessor after wrap is refused', async () => {
+      getAccountMock.mockResolvedValue(buildAccount(PATH_DEFAULT, { keyPair: { privateKey: 'secret' } }))
 
-      expect(err).toBeInstanceOf(PolicyViolationError)
+      const account = await governed()
+
+      expect(() => Object.defineProperty(account, 'leak', {
+        get () { return this.keyPair },
+        configurable: true
+      })).toThrow(TypeError)
+      expect(account.leak).toBeUndefined()
+    })
+
+    test('re-pointing an excluded name at a function is refused', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      const account = await governed()
+
+      expect(() => { account.getBalance = sendTransactionMock }).toThrow(TypeError)
       expect(sendTransactionMock).not.toHaveBeenCalled()
+    })
+
+    test('overwriting _buildProtocol after wrap is refused', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      const account = await governed()
+
+      expect(() => { account._buildProtocol = () => ({}) }).toThrow(TypeError)
+    })
+
+    test('swapping the prototype through the proxy is refused', async () => {
+      getAccountMock.mockResolvedValue(buildAccount())
+
+      const account = await governed()
+
+      expect(() => Object.setPrototypeOf(account, { sneak () { return 'raw' } })).toThrow(TypeError)
     })
 
     test('a prototype method added after wrap is governed, not run raw', async () => {
@@ -3283,20 +3319,49 @@ wdk.registerPolicy({
       const err = await catchAsync(() => account.sneak({ to: RECIPIENT, value: 1n }))
 
       expect(err).toBeInstanceOf(PolicyViolationError)
+      expect(err.operation).toBe('sneak')
+      expect(err.ruleName).toBe('<unknown>')
+      expect(err.code).toBe('NO_APPLICABLE_RULE')
       expect(sendTransactionMock).not.toHaveBeenCalled()
     })
 
-    test('re-pointing an excluded name at a governed method does not bypass the engine', async () => {
+    test('a prototype method added after wrap binds to the proxy, so keyPair stays hidden', async () => {
+      const proto = {}
+      const raw = Object.setPrototypeOf(buildAccount(PATH_DEFAULT, { keyPair: { privateKey: 'secret' } }), proto)
+      getAccountMock.mockResolvedValue(raw)
+
+      wdk.registerWallet('ethereum', WalletManagerMock, {}).registerPolicy(allowAllOps)
+      const account = await wdk.getAccount('ethereum', 0)
+
+      proto.leak = function () { return this.keyPair }
+
+      // The policy allows the call, but `this` is the proxy, so a method bound to
+      // the raw account would have leaked keyPair; here it reads back undefined.
+      await expect(account.leak()).resolves.toBeUndefined()
+    })
+
+    test('a protocol method added after wrap is governed through the protocol proxy', async () => {
+      class MySwapProtocol extends SwapProtocol {
+        async swap (opts) { return DUMMY_SWAP_RESULT }
+      }
+
       getAccountMock.mockResolvedValue(buildAccount())
 
-      const account = await governed()
+      wdk
+        .registerWallet('ethereum', WalletManagerMock, {})
+        .registerProtocol('ethereum', 'velora', MySwapProtocol, {})
+        .registerPolicy(projectDenyAll('deny'))
 
-      account.getBalance = sendTransactionMock
+      const account = await wdk.getAccount('ethereum', 0)
+      const swap = account.getSwapProtocol('velora')
 
-      const err = await catchAsync(() => account.getBalance({ to: RECIPIENT, value: 1n }))
+      // Added after the protocol proxy snapshotted its trusted functions.
+      MySwapProtocol.prototype.sneak = function () { return 'raw' }
+
+      const err = await catchAsync(() => swap.sneak())
 
       expect(err).toBeInstanceOf(PolicyViolationError)
-      expect(sendTransactionMock).not.toHaveBeenCalled()
+      expect(err.operation).toBe('sneak')
     })
 
     test('the real excluded read still runs raw', async () => {
@@ -3306,20 +3371,6 @@ wdk.registerPolicy({
 
       await expect(account.getBalance()).resolves.toBe(DUMMY_BALANCE)
       expect(getBalanceMock).toHaveBeenCalledTimes(1)
-    })
-
-    test('keyPair stays hidden from functions added after wrap', async () => {
-      getAccountMock.mockResolvedValue(buildAccount(PATH_DEFAULT, { keyPair: { privateKey: 'secret' } }))
-
-      const account = await governed()
-
-      account.leak = function () { return this.keyPair }
-
-      expect(account.keyPair).toBeUndefined()
-
-      const err = await catchAsync(() => account.leak())
-
-      expect(err).toBeInstanceOf(PolicyViolationError)
     })
   })
   // -------------------------------------------------------------------------

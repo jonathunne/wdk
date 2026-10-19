@@ -50,6 +50,12 @@ const EMPTY_METHODS = new Map()
 
 const governedMethodCache = new WeakMap()
 
+// One trusted-function set per raw account, shared across every proxy built for
+// it. Middleware re-runs on the cached account on each `getAccount()` and can
+// reassign methods (new identities); unioning them here keeps earlier handles
+// from governing — and so breaking — those legitimate methods.
+const accountTrustedFunctions = new WeakMap()
+
 function isProtectedMember (prop) {
   return prop === 'keyPair' || (typeof prop === 'string' && prop.startsWith('_'))
 }
@@ -151,19 +157,26 @@ function createGuardedProxy (subject, substitutions, trusted, ctx) {
       return Reflect.ownKeys(target).filter((prop) => !isProtectedMember(prop))
     },
 
-    // Write to the target directly, not via `receiver`, which would re-enter
-    // `defineProperty` and refuse the write. An assigned callable then lands on
-    // the account and is governed on read.
-    set (target, prop, value) {
-      return Reflect.set(target, prop, value)
-    },
-
+    // No `set` trap: a function write falls through to `defineProperty` below
+    // and is refused there. Writing it onto the target instead would let a
+    // trusted wrap-time method pick it up and run it raw (reading `keyPair` /
+    // `sign`), so refuse rather than store.
     defineProperty (target, prop, descriptor) {
       // Refuse accessors and functions: an accessor could read protected state,
-      // and a function belongs on the governed-on-read path via `set`.
-      if ('get' in descriptor || 'set' in descriptor || typeof descriptor.value === 'function') return false
+      // and a function could be run raw by a trusted method or protocol getter.
+      // Throw (naming the property) rather than return false, which non-strict
+      // code would drop silently.
+      if ('get' in descriptor || 'set' in descriptor || typeof descriptor.value === 'function') {
+        throw new TypeError(`Cannot define '${String(prop)}' on a policy-governed account: accessors and functions are refused.`)
+      }
 
       return Reflect.defineProperty(target, prop, descriptor)
+    },
+
+    // Refuse prototype swaps: a new prototype could reintroduce a callable that
+    // a trusted method resolves and runs raw.
+    setPrototypeOf (target, proto) {
+      throw new TypeError('Cannot change the prototype of a policy-governed account.')
     },
 
     preventExtensions () {
@@ -290,7 +303,16 @@ export async function createPolicyEnforcedAccount (account, { blockchain, path, 
     })
   }
 
-  const trusted = collectTrustedFunctions(account, governedMethods)
+  let trusted = accountTrustedFunctions.get(account)
+
+  if (trusted === undefined) {
+    trusted = new Set()
+    accountTrustedFunctions.set(account, trusted)
+  }
+
+  // Union this wrap's functions into the shared set, so methods middleware
+  // installed on a later retrieval stay trusted for handles built earlier.
+  for (const fn of collectTrustedFunctions(account, governedMethods)) trusted.add(fn)
 
   handle.proxy = createGuardedProxy(account, substitutions, trusted, ctx)
 
