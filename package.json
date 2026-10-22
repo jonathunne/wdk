@@ -25,8 +25,7 @@
   },
   "dependencies": {
     "@tetherto/wdk-wallet": "^1.0.0-beta.15",
-    "bare-node-runtime": "^1.4.0",
-    "bare-tls": "^3.1.13",
+    "bare-node-runtime": "^1.5.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
